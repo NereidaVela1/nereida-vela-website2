@@ -1,0 +1,58 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NSFR: Nereida's Sweet Fraudster Revenge</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+            h1 { color: #333; text-align: center; }
+            table { width: 80%; margin: 20px auto; border-collapse: collapse; }
+            th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+            th { background-color: #4CAF50; color: white; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            .high-risk { color: red; font-weight: bold; }
+            canvas { max-width: 600px; margin: 20px auto; }
+        </style>
+    </head>
+    <body>
+        <h1>NSFR: Nereida's Sweet Fraudster Revenge</h1>
+        <p>Global AI + AR Real-Time Fraud Deterrence with Satellite Locations - Updated: 2025-03-31 14:25:40</p>
+        <table>
+            <tr><th>Fraud Type</th><th>Count</th></tr>
+            <tr><td>Total Fraudulent IPs</td><td>0</td></tr>
+            <tr><td>Global XSS Attacks</td><td>0</td></tr>
+            <tr><td>Global SMS Fraud</td><td>0</td></tr>
+            <tr><td>Global Email Fraud</td><td>0</td></tr>
+            <tr><td>Global WeChat Fraud</td><td>0</td></tr>
+            <tr><td>Global UPI Fraud</td><td>0</td></tr>
+        </table>
+        <canvas id="fraudChart"></canvas>
+        <h2>High-Risk Fraudsters Deterred Globally</h2>
+        <p class="high-risk">None</p>
+        <script>
+            const ctx = document.getElementById('fraudChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ["Total IPs", "XSS", "SMS", "Email", "WeChat", "UPI"],
+                    datasets: [{
+                        label: 'Fraud Counts',
+                        data: [0, 0, 0, 0, 0, 0],
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        </script>
+    </body>
+    </html>
+    

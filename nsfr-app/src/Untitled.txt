@@ -1,0 +1,11 @@
+
+C:\Users\nereida longoria\PycharmProjects\pythonProjectNSFR\
+├── main.py
+├── requirements.txt
+├── serviceAccountKey.json
+├── templates\
+│   └── index.html
+├── static\
+│   └── style.css
+├── access.log  (optional, for testing)
+└── .venv\

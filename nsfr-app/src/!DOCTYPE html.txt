@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NSFR: Nereida's Sweet Fraudster Revenge</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>NSFR: Nereida's Sweet Fraudster Revenge</h1>
+    <p>Global AI + ML Real-Time Fraud Deterrence with AR - Scan with Webcam</p>
+
+    <!-- AR Scene -->
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+        <a-sphere position="0 0 -5" radius="1" color="blue" id="globe"></a-sphere>
+        <a-entity id="hotspots"></a-entity>
+        <a-camera position="0 0 0"></a-camera>
+    </a-scene>
+
+    <!-- Fraud Stats -->
+    <table>
+        <tr><th>Fraud Type</th><th>Count</th></tr>
+        <tr><td>Total Fraudulent IPs</td><td id="total">0</td></tr>
+        <tr><td>Global XSS Attacks</td><td id="xss">0</td></tr>
+        <tr><td>Global SMS Fraud</td><td id="sms_xss">0</td></tr>
+        <tr><td>Global Email Fraud</td><td id="email_xss">0</td></tr>
+        <tr><td>Global WeChat Fraud</td><td id="wechat_xss">0</td></tr>
+        <tr><td>Global UPI Fraud</td><td id="upi_fraud">0</td></tr>
+    </table>
+
+    <!-- Chart -->
+    <canvas id="fraudChart"></canvas>
+
+    <!-- High-Risk IPs -->
+    <h2>High-Risk Fraudsters Deterred Globally</h2>
+    <table id="high_risk_table">
+        <tr><th>IP</th><th>Location</th><th>Meme</th></tr>
+    </table>
+
+    <script>
+        // Fetch fraud data every 5 seconds
+        function updateFraudData() {
+            fetch('/fraud_data')
+                .then(response => response.json())
+                .then(data => {
+                    // Update table
+                    document.getElementById('total').innerText = data.total;
+                    document.getElementById('xss').innerText = data.xss;
+                    document.getElementById('sms_xss').innerText = data.sms_xss;
+                    document.getElementById('email_xss').innerText = data.email_xss;
+                    document.getElementById('wechat_xss').innerText = data.wechat_xss;
+                    document.getElementById('upi_fraud').innerText = data.upi_fraud;
+
+                    // Update chart
+                    const ctx = document.getElementById('fraudChart').getContext('2d');
+                    if (window.fraudChart) window.fraudChart.destroy();
+                    window.fraudChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Total IPs', 'XSS', 'SMS', 'Email', 'WeChat', 'UPI'],
+                            datasets: [{
+                                label: 'Fraud Counts',
+                                data: [data.total, data.xss, data.sms_xss, data.email_xss, data.wechat_xss, data.upi_fraud],
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+
+                    // Update high-risk IPs table and AR hotspots
+                    const table = document.getElementById('high_risk_table');
+                    const hotspots = document.getElementById('hotspots');
+                    table.innerHTML = '<tr><th>IP</th><th>Location</th><th>Meme</th></tr>';
+                    hotspots.innerHTML = '';
+                    data.high_risk_ips.forEach(ip => {
+                        table.innerHTML += `<tr><td>${ip.ip}</td><td>${ip.location}</td><td><img src="${ip.meme}" class="meme" alt="meme"></td></tr>`;
+                        // Convert lat/lon to 3D coordinates (simplified)
+                        const lat = ip.lat * Math.PI / 180;
+                        const lon = ip.lon * Math.PI / 180;
+                        const radius = 1.1;
+                        const x = radius * Math.sin(lat) * Math.cos(lon);
+                        const y = radius * Math.cos(lat);
+                        const z = radius * Math.sin(lat) * Math.sin(lon) - 5;
+                        hotspots.innerHTML += `<a-sphere position="${x} ${y} ${z}" radius="0.1" color="red"></a-sphere>`;
+                        hotspots.innerHTML += `<a-plane position="${x} ${y + 0.2} ${z}" width="0.5" height="0.5" material="src: ${ip.meme}; transparent: true;"></a-plane>`;
+                    });
+                });
+        }
+
+        setInterval(updateFraudData, 5000); // Update every 5 seconds
+        updateFraudData(); // Initial call
+    </script>
+</body>
+</html>

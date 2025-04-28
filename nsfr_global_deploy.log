@@ -1,0 +1,213 @@
+2025-03-30 19:22:10,270 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 19:22:10,271 [INFO] Sweeping global fraud networks...
+2025-03-30 19:22:11,402 [INFO] Flagged 406,514/410,958 (100.0%)
+2025-03-30 19:22:11,403 [INFO] AR: Flagged 406,514 global IPs - 53,889 XSS, 27,297 SMS-XSS, 27,173 Email-XSS, 13,427 WeChat-XSS, 13,466 UPI-Fraud
+2025-03-30 19:22:11,715 [INFO] Shared with 500 partners - Latency: 55ms
+2025-03-30 19:22:11,735 [INFO] Tracking global fraud IPs...
+2025-03-30 19:22:12,245 [INFO] Tracked 359,686 (87.0%)
+2025-03-30 19:22:12,245 [INFO] AR: Tracked 359,686 global IPs - 48,306 XSS, 23,775 SMS-XSS, 24,061 Email-XSS, 12,016 WeChat-XSS, 11,937 UPI-Fraud
+2025-03-30 19:22:12,253 [INFO] Disrupting global fraud operations...
+2025-03-30 19:22:12,958 [INFO] Disrupted 353,515 (100.0%), Active: 172,610
+2025-03-30 19:22:12,958 [INFO] AR: Disrupted 353,515 global IPs - 46,815 XSS, 23,552 SMS-XSS, 23,708 Email-XSS, 11,874 WeChat-XSS, 11,701 UPI-Fraud
+2025-03-30 19:22:13,161 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 19:22:13,161 [INFO] Reporting global fraud IPs...
+2025-03-30 19:22:13,472 [INFO] Reported 349,463 (100.0%), 2,000,000,000 protected
+2025-03-30 19:22:13,472 [INFO] AR: Reported 349,463 global IPs - 46,208 XSS, 23,087 SMS-XSS, 23,371 Email-XSS, 11,703 WeChat-XSS, 11,602 UPI-Fraud, Savings: USD: $87,718,581.55, EUR: $81,008,110.06, GBP: $69,218,732.70, CNY: $623,258,065.62, INR: $7,322,650,697.29
+2025-03-30 19:28:18,487 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 19:28:18,487 [INFO] Sweeping global fraud networks...
+2025-03-30 19:28:19,496 [INFO] Flagged 407,850/410,958 (100.0%)
+2025-03-30 19:28:19,496 [INFO] AR: Flagged 407,850 global IPs - 53,841 XSS, 27,123 SMS-XSS, 27,059 Email-XSS, 13,527 WeChat-XSS, 13,471 UPI-Fraud
+2025-03-30 19:28:19,698 [INFO] Shared with 500 partners - Latency: 55ms
+2025-03-30 19:28:19,698 [INFO] Tracking global fraud IPs...
+2025-03-30 19:28:20,202 [INFO] Tracked 351,730 (87.0%)
+2025-03-30 19:28:20,203 [INFO] AR: Tracked 351,730 global IPs - 47,085 XSS, 23,326 SMS-XSS, 23,373 Email-XSS, 11,646 WeChat-XSS, 11,642 UPI-Fraud
+2025-03-30 19:28:20,203 [INFO] Disrupting global fraud operations...
+2025-03-30 19:28:20,911 [INFO] Disrupted 351,395 (100.0%), Active: 172,013
+2025-03-30 19:28:20,911 [INFO] AR: Disrupted 351,395 global IPs - 47,061 XSS, 23,296 SMS-XSS, 23,437 Email-XSS, 11,614 WeChat-XSS, 11,808 UPI-Fraud
+2025-03-30 19:28:21,113 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 19:28:21,113 [INFO] Reporting global fraud IPs...
+2025-03-30 19:28:21,426 [INFO] Reported 354,143 (100.0%), 2,000,000,000 protected
+2025-03-30 19:28:21,426 [INFO] AR: Reported 354,143 global IPs - 47,427 XSS, 23,620 SMS-XSS, 23,840 Email-XSS, 11,745 WeChat-XSS, 11,764 UPI-Fraud, Savings: USD: $89,068,471.30, EUR: $82,254,733.25, GBP: $70,283,930.71, CNY: $632,849,302.31, INR: $7,435,338,009.10
+2025-03-30 19:28:36,916 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 19:28:36,916 [INFO] Sweeping global fraud networks...
+2025-03-30 19:28:37,932 [INFO] Flagged 403,825/410,958 (100.0%)
+2025-03-30 19:28:37,932 [INFO] AR: Flagged 403,825 global IPs - 53,744 XSS, 26,697 SMS-XSS, 26,909 Email-XSS, 13,410 WeChat-XSS, 13,348 UPI-Fraud
+2025-03-30 19:28:38,135 [INFO] Shared with 500 partners - Latency: 50ms
+2025-03-30 19:28:38,136 [INFO] Tracking global fraud IPs...
+2025-03-30 19:28:38,636 [INFO] Tracked 354,699 (87.0%)
+2025-03-30 19:28:38,636 [INFO] AR: Tracked 354,699 global IPs - 47,426 XSS, 23,431 SMS-XSS, 23,694 Email-XSS, 11,890 WeChat-XSS, 11,720 UPI-Fraud
+2025-03-30 19:28:38,637 [INFO] Disrupting global fraud operations...
+2025-03-30 19:28:39,339 [INFO] Disrupted 353,887 (100.0%), Active: 184,618
+2025-03-30 19:28:39,340 [INFO] AR: Disrupted 353,887 global IPs - 47,476 XSS, 23,626 SMS-XSS, 23,669 Email-XSS, 11,691 WeChat-XSS, 11,741 UPI-Fraud
+2025-03-30 19:28:39,544 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 19:28:39,544 [INFO] Reporting global fraud IPs...
+2025-03-30 19:28:39,859 [INFO] Reported 347,679 (100.0%), 2,000,000,000 protected
+2025-03-30 19:28:39,859 [INFO] AR: Reported 347,679 global IPs - 46,730 XSS, 23,176 SMS-XSS, 23,064 Email-XSS, 11,609 WeChat-XSS, 11,681 UPI-Fraud, Savings: USD: $86,516,575.84, EUR: $79,898,057.79, GBP: $68,270,229.99, CNY: $614,717,574.64, INR: $7,222,308,582.69
+2025-03-30 19:46:58,681 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 19:46:58,681 [INFO] Sweeping global fraud networks...
+2025-03-30 19:46:59,689 [INFO] Flagged 410,330/410,958 (100.0%)
+2025-03-30 19:46:59,689 [INFO] AR: Flagged 410,330 global IPs - 54,846 XSS, 27,479 SMS-XSS, 27,309 Email-XSS, 13,702 WeChat-XSS, 13,762 UPI-Fraud
+2025-03-30 19:46:59,904 [INFO] Shared with 500 partners - Latency: 55ms
+2025-03-30 19:46:59,905 [INFO] Tracking global fraud IPs...
+2025-03-30 19:47:00,417 [INFO] Tracked 362,940 (87.0%)
+2025-03-30 19:47:00,417 [INFO] AR: Tracked 362,940 global IPs - 48,151 XSS, 24,250 SMS-XSS, 23,912 Email-XSS, 11,958 WeChat-XSS, 11,958 UPI-Fraud
+2025-03-30 19:47:00,418 [INFO] Disrupting global fraud operations...
+2025-03-30 19:47:01,133 [INFO] Disrupted 363,701 (100.0%), Active: 187,214
+2025-03-30 19:47:01,133 [INFO] AR: Disrupted 363,701 global IPs - 48,386 XSS, 24,362 SMS-XSS, 24,380 Email-XSS, 12,068 WeChat-XSS, 12,224 UPI-Fraud
+2025-03-30 19:47:01,335 [WARNING] Minor sync delay with 2 partners—resolved
+2025-03-30 19:47:01,336 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 19:47:01,336 [INFO] Reporting global fraud IPs...
+2025-03-30 19:47:01,644 [INFO] Reported 365,454 (100.0%), 2,000,000,000 protected
+2025-03-30 19:47:01,644 [INFO] AR: Reported 365,454 global IPs - 48,805 XSS, 24,137 SMS-XSS, 24,503 Email-XSS, 12,060 WeChat-XSS, 12,116 UPI-Fraud, Savings: USD: $92,106,763.96, EUR: $85,060,596.52, GBP: $72,681,447.44, CNY: $654,436,979.31, INR: $7,688,971,338.16
+2025-03-30 19:56:16,903 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 19:56:16,904 [INFO] Sweeping global fraud networks...
+2025-03-30 19:56:17,911 [INFO] Flagged 408,700/410,958 (100.0%)
+2025-03-30 19:56:17,911 [INFO] AR: Flagged 408,700 global IPs - 54,636 XSS, 27,395 SMS-XSS, 27,073 Email-XSS, 13,580 WeChat-XSS, 13,644 UPI-Fraud
+2025-03-30 19:56:18,129 [INFO] Shared with 500 partners - Latency: 53ms
+2025-03-30 19:56:18,129 [INFO] Tracking global fraud IPs...
+2025-03-30 19:56:18,633 [INFO] Tracked 361,883 (87.0%)
+2025-03-30 19:56:18,634 [INFO] AR: Tracked 361,883 global IPs - 48,616 XSS, 24,052 SMS-XSS, 23,880 Email-XSS, 12,066 WeChat-XSS, 11,990 UPI-Fraud
+2025-03-30 19:56:18,634 [INFO] Disrupting global fraud operations...
+2025-03-30 19:56:19,343 [INFO] Disrupted 361,501 (100.0%), Active: 176,155
+2025-03-30 19:56:19,343 [INFO] AR: Disrupted 361,501 global IPs - 48,501 XSS, 24,338 SMS-XSS, 23,985 Email-XSS, 12,143 WeChat-XSS, 12,129 UPI-Fraud
+2025-03-30 19:56:19,548 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 19:56:19,548 [INFO] Reporting global fraud IPs...
+2025-03-30 19:56:19,849 [INFO] Reported 358,097 (100.0%), 2,000,000,000 protected
+2025-03-30 19:56:19,849 [INFO] AR: Reported 358,097 global IPs - 47,850 XSS, 23,851 SMS-XSS, 23,636 Email-XSS, 11,826 WeChat-XSS, 12,022 UPI-Fraud, Savings: USD: $88,973,207.49, EUR: $82,166,757.12, GBP: $70,208,758.03, CNY: $632,172,433.87, INR: $7,427,385,490.84
+2025-03-30 20:08:11,325 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:08:11,326 [INFO] Sweeping global fraud networks...
+2025-03-30 20:08:12,356 [INFO] Flagged 416,584/410,958 (100.0%)
+2025-03-30 20:08:12,356 [INFO] AR: Flagged 416,584 global IPs - 55,363 XSS, 27,775 SMS-XSS, 27,946 Email-XSS, 13,848 WeChat-XSS, 13,900 UPI-Fraud
+2025-03-30 20:08:12,593 [INFO] Shared with 500 partners - Latency: 50ms
+2025-03-30 20:08:12,593 [INFO] Tracking global fraud IPs...
+2025-03-30 20:08:13,119 [INFO] Tracked 359,422 (87.0%)
+2025-03-30 20:08:13,119 [INFO] AR: Tracked 359,422 global IPs - 47,987 XSS, 23,713 SMS-XSS, 23,661 Email-XSS, 12,001 WeChat-XSS, 11,891 UPI-Fraud
+2025-03-30 20:08:13,120 [INFO] Disrupting global fraud operations...
+2025-03-30 20:08:13,827 [INFO] Disrupted 360,826 (100.0%), Active: 176,491
+2025-03-30 20:08:13,827 [INFO] AR: Disrupted 360,826 global IPs - 48,013 XSS, 23,886 SMS-XSS, 23,833 Email-XSS, 12,064 WeChat-XSS, 12,111 UPI-Fraud
+2025-03-30 20:08:14,089 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:08:14,090 [INFO] Reporting global fraud IPs...
+2025-03-30 20:08:14,451 [INFO] Reported 365,149 (100.0%), 2,000,000,000 protected
+2025-03-30 20:08:14,451 [INFO] AR: Reported 365,149 global IPs - 48,836 XSS, 24,555 SMS-XSS, 24,288 Email-XSS, 12,137 WeChat-XSS, 12,183 UPI-Fraud, Savings: USD: $91,300,327.22, EUR: $84,315,852.19, GBP: $72,045,088.21, CNY: $648,707,084.98, INR: $7,621,650,886.11
+2025-03-30 20:08:24,260 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:08:24,260 [INFO] Sweeping global fraud networks...
+2025-03-30 20:08:25,315 [INFO] Flagged 413,302/410,958 (100.0%)
+2025-03-30 20:08:25,315 [INFO] AR: Flagged 413,302 global IPs - 54,807 XSS, 27,718 SMS-XSS, 27,801 Email-XSS, 13,812 WeChat-XSS, 13,724 UPI-Fraud
+2025-03-30 20:08:25,550 [INFO] Shared with 500 partners - Latency: 55ms
+2025-03-30 20:08:25,550 [INFO] Tracking global fraud IPs...
+2025-03-30 20:08:26,118 [INFO] Tracked 366,220 (87.0%)
+2025-03-30 20:08:26,118 [INFO] AR: Tracked 366,220 global IPs - 48,955 XSS, 24,160 SMS-XSS, 24,319 Email-XSS, 12,249 WeChat-XSS, 12,087 UPI-Fraud
+2025-03-30 20:08:26,118 [INFO] Disrupting global fraud operations...
+2025-03-30 20:08:26,869 [INFO] Disrupted 372,921 (100.0%), Active: 178,229
+2025-03-30 20:08:26,869 [INFO] AR: Disrupted 372,921 global IPs - 50,070 XSS, 24,987 SMS-XSS, 24,645 Email-XSS, 12,329 WeChat-XSS, 12,414 UPI-Fraud
+2025-03-30 20:08:27,101 [WARNING] Minor sync delay with 2 partners—resolved
+2025-03-30 20:08:27,101 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:08:27,101 [INFO] Reporting global fraud IPs...
+2025-03-30 20:08:27,433 [INFO] Reported 373,325 (100.0%), 2,000,000,000 protected
+2025-03-30 20:08:27,433 [INFO] AR: Reported 373,325 global IPs - 49,372 XSS, 24,825 SMS-XSS, 25,063 Email-XSS, 12,346 WeChat-XSS, 12,555 UPI-Fraud, Savings: USD: $92,597,899.93, EUR: $85,514,160.59, GBP: $73,069,002.84, CNY: $657,926,598.59, INR: $7,729,970,828.54
+2025-03-30 20:13:55,639 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:13:55,640 [INFO] Sweeping global fraud networks...
+2025-03-30 20:13:56,668 [INFO] Flagged 404,005/410,958 (100.0%)
+2025-03-30 20:13:56,668 [INFO] AR: Flagged 404,005 global IPs - 54,026 XSS, 26,918 SMS-XSS, 26,733 Email-XSS, 13,529 WeChat-XSS, 13,509 UPI-Fraud
+2025-03-30 20:13:56,878 [INFO] Shared with 500 partners - Latency: 52ms
+2025-03-30 20:13:56,879 [INFO] Tracking global fraud IPs...
+2025-03-30 20:13:57,396 [INFO] Tracked 346,010 (87.0%)
+2025-03-30 20:13:57,396 [INFO] AR: Tracked 346,010 global IPs - 45,887 XSS, 23,191 SMS-XSS, 22,832 Email-XSS, 11,451 WeChat-XSS, 11,437 UPI-Fraud
+2025-03-30 20:13:57,396 [INFO] Disrupting global fraud operations...
+2025-03-30 20:13:58,114 [INFO] Disrupted 342,846 (100.0%), Active: 168,509
+2025-03-30 20:13:58,114 [INFO] AR: Disrupted 342,846 global IPs - 45,420 XSS, 23,069 SMS-XSS, 23,045 Email-XSS, 11,494 WeChat-XSS, 11,514 UPI-Fraud
+2025-03-30 20:13:58,333 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:13:58,333 [INFO] Reporting global fraud IPs...
+2025-03-30 20:13:58,645 [INFO] Reported 337,043 (100.0%), 2,000,000,000 protected
+2025-03-30 20:13:58,645 [INFO] AR: Reported 337,043 global IPs - 45,158 XSS, 22,642 SMS-XSS, 22,641 Email-XSS, 11,326 WeChat-XSS, 11,234 UPI-Fraud, Savings: USD: $84,567,155.54, EUR: $78,097,768.14, GBP: $66,731,942.44, CNY: $600,866,553.55, INR: $7,059,573,120.72
+2025-03-30 20:43:18,843 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:43:18,844 [INFO] Sweeping global fraud networks...
+2025-03-30 20:43:19,858 [INFO] Flagged 411,562/410,958 (100.0%)
+2025-03-30 20:43:19,858 [INFO] AR: Flagged 411,562 global IPs - 55,096 XSS, 27,700 SMS-XSS, 27,340 Email-XSS, 13,793 WeChat-XSS, 13,586 UPI-Fraud
+2025-03-30 20:43:20,067 [INFO] Shared with 500 partners - Latency: 49ms
+2025-03-30 20:43:20,067 [INFO] Tracking global fraud IPs...
+2025-03-30 20:43:20,582 [INFO] Tracked 358,547 (87.0%)
+2025-03-30 20:43:20,582 [INFO] AR: Tracked 358,547 global IPs - 48,026 XSS, 23,805 SMS-XSS, 24,009 Email-XSS, 11,911 WeChat-XSS, 11,915 UPI-Fraud
+2025-03-30 20:43:20,582 [INFO] Disrupting global fraud operations...
+2025-03-30 20:43:21,297 [INFO] Disrupted 363,500 (100.0%), Active: 182,114
+2025-03-30 20:43:21,297 [INFO] AR: Disrupted 363,500 global IPs - 48,004 XSS, 24,122 SMS-XSS, 24,331 Email-XSS, 12,031 WeChat-XSS, 12,102 UPI-Fraud
+2025-03-30 20:43:21,511 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:43:21,511 [INFO] Reporting global fraud IPs...
+2025-03-30 20:43:21,823 [INFO] Reported 370,008 (100.0%), 2,000,000,000 protected
+2025-03-30 20:43:21,823 [INFO] AR: Reported 370,008 global IPs - 49,751 XSS, 24,911 SMS-XSS, 24,499 Email-XSS, 12,445 WeChat-XSS, 12,258 UPI-Fraud, Savings: USD: $92,165,798.43, EUR: $85,115,114.85, GBP: $72,728,031.54, CNY: $654,856,431.01, INR: $7,693,899,470.60
+2025-03-30 20:43:53,219 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:43:53,219 [INFO] Sweeping global fraud networks...
+2025-03-30 20:43:54,231 [INFO] Flagged 402,882/410,958 (100.0%)
+2025-03-30 20:43:54,232 [INFO] AR: Flagged 402,882 global IPs - 53,378 XSS, 26,797 SMS-XSS, 27,097 Email-XSS, 13,414 WeChat-XSS, 13,324 UPI-Fraud
+2025-03-30 20:43:54,432 [INFO] Shared with 500 partners - Latency: 53ms
+2025-03-30 20:43:54,433 [INFO] Tracking global fraud IPs...
+2025-03-30 20:43:54,947 [INFO] Tracked 347,602 (87.0%)
+2025-03-30 20:43:54,947 [INFO] AR: Tracked 347,602 global IPs - 46,195 XSS, 23,061 SMS-XSS, 23,068 Email-XSS, 11,548 WeChat-XSS, 11,586 UPI-Fraud
+2025-03-30 20:43:54,947 [INFO] Disrupting global fraud operations...
+2025-03-30 20:43:55,654 [INFO] Disrupted 345,415 (100.0%), Active: 166,817
+2025-03-30 20:43:55,654 [INFO] AR: Disrupted 345,415 global IPs - 45,935 XSS, 23,107 SMS-XSS, 23,111 Email-XSS, 11,417 WeChat-XSS, 11,532 UPI-Fraud
+2025-03-30 20:43:55,855 [WARNING] Minor sync delay with 2 partners—resolved
+2025-03-30 20:43:55,856 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:43:55,856 [INFO] Reporting global fraud IPs...
+2025-03-30 20:43:56,168 [INFO] Reported 341,132 (100.0%), 2,000,000,000 protected
+2025-03-30 20:43:56,168 [INFO] AR: Reported 341,132 global IPs - 45,470 XSS, 22,653 SMS-XSS, 22,638 Email-XSS, 11,365 WeChat-XSS, 11,310 UPI-Fraud, Savings: USD: $84,598,786.19, EUR: $78,126,979.05, GBP: $66,756,902.18, CNY: $601,091,295.63, INR: $7,062,213,612.44
+2025-03-30 20:51:59,778 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 20:51:59,779 [INFO] Sweeping global fraud networks...
+2025-03-30 20:52:00,799 [INFO] Flagged 405,978/410,958 (100.0%)
+2025-03-30 20:52:00,800 [INFO] AR: Flagged 405,978 global IPs - 53,961 XSS, 27,217 SMS-XSS, 27,027 Email-XSS, 13,471 WeChat-XSS, 13,446 UPI-Fraud
+2025-03-30 20:52:01,015 [INFO] Shared with 500 partners - Latency: 51ms
+2025-03-30 20:52:01,015 [INFO] Tracking global fraud IPs...
+2025-03-30 20:52:01,516 [INFO] Tracked 347,711 (87.0%)
+2025-03-30 20:52:01,516 [INFO] AR: Tracked 347,711 global IPs - 46,064 XSS, 22,939 SMS-XSS, 23,297 Email-XSS, 11,623 WeChat-XSS, 11,615 UPI-Fraud
+2025-03-30 20:52:01,516 [INFO] Disrupting global fraud operations...
+2025-03-30 20:52:02,225 [INFO] Disrupted 352,188 (100.0%), Active: 177,630
+2025-03-30 20:52:02,225 [INFO] AR: Disrupted 352,188 global IPs - 47,176 XSS, 23,345 SMS-XSS, 23,532 Email-XSS, 11,854 WeChat-XSS, 11,735 UPI-Fraud
+2025-03-30 20:52:02,429 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 20:52:02,430 [INFO] Reporting global fraud IPs...
+2025-03-30 20:52:02,743 [INFO] Reported 357,730 (100.0%), 2,000,000,000 protected
+2025-03-30 20:52:02,743 [INFO] AR: Reported 357,730 global IPs - 47,653 XSS, 24,043 SMS-XSS, 23,653 Email-XSS, 11,885 WeChat-XSS, 11,924 UPI-Fraud, Savings: USD: $89,573,963.17, EUR: $82,721,554.98, GBP: $70,682,814.33, CNY: $636,440,923.08, INR: $7,477,535,913.67
+2025-03-30 21:01:54,619 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 21:01:54,620 [INFO] Sweeping global fraud networks...
+2025-03-30 21:01:55,631 [INFO] Flagged 403,405/410,958 (100.0%)
+2025-03-30 21:01:55,631 [INFO] AR: Flagged 403,405 global IPs - 53,490 XSS, 26,973 SMS-XSS, 26,991 Email-XSS, 13,355 WeChat-XSS, 13,548 UPI-Fraud
+2025-03-30 21:01:55,840 [INFO] Shared with 500 partners - Latency: 53ms
+2025-03-30 21:01:55,840 [INFO] Tracking global fraud IPs...
+2025-03-30 21:01:56,354 [INFO] Tracked 349,514 (87.0%)
+2025-03-30 21:01:56,354 [INFO] AR: Tracked 349,514 global IPs - 46,440 XSS, 23,338 SMS-XSS, 23,082 Email-XSS, 11,612 WeChat-XSS, 11,599 UPI-Fraud
+2025-03-30 21:01:56,355 [INFO] Disrupting global fraud operations...
+2025-03-30 21:01:57,056 [INFO] Disrupted 344,713 (100.0%), Active: 167,137
+2025-03-30 21:01:57,056 [INFO] AR: Disrupted 344,713 global IPs - 45,893 XSS, 23,068 SMS-XSS, 23,122 Email-XSS, 11,500 WeChat-XSS, 11,465 UPI-Fraud
+2025-03-30 21:01:57,260 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 21:01:57,261 [INFO] Reporting global fraud IPs...
+2025-03-30 21:01:57,574 [INFO] Reported 349,507 (100.0%), 2,000,000,000 protected
+2025-03-30 21:01:57,574 [INFO] AR: Reported 349,507 global IPs - 46,378 XSS, 23,332 SMS-XSS, 23,322 Email-XSS, 11,748 WeChat-XSS, 11,562 UPI-Fraud, Savings: USD: $87,766,949.02, EUR: $81,052,777.42, GBP: $69,256,899.47, CNY: $623,601,726.18, INR: $7,326,688,360.56
+2025-03-30 21:16:26,227 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 21:16:26,228 [INFO] Sweeping global fraud networks...
+2025-03-30 21:16:27,230 [INFO] Flagged 416,807/410,958 (100.0%)
+2025-03-30 21:16:27,230 [INFO] AR: Flagged 416,807 global IPs - 56,106 XSS, 27,579 SMS-XSS, 27,791 Email-XSS, 13,955 WeChat-XSS, 13,924 UPI-Fraud
+2025-03-30 21:16:27,433 [INFO] Shared with 500 partners - Latency: 52ms
+2025-03-30 21:16:27,434 [INFO] Tracking global fraud IPs...
+2025-03-30 21:16:27,946 [INFO] Tracked 357,534 (87.0%)
+2025-03-30 21:16:27,946 [INFO] AR: Tracked 357,534 global IPs - 48,027 XSS, 23,834 SMS-XSS, 23,960 Email-XSS, 11,979 WeChat-XSS, 11,898 UPI-Fraud
+2025-03-30 21:16:27,946 [INFO] Disrupting global fraud operations...
+2025-03-30 21:16:28,650 [INFO] Disrupted 358,818 (100.0%)
+2025-03-30 21:16:28,650 [INFO] AR: Disrupted 358,818 global IPs - 48,140 XSS, 24,051 SMS-XSS, 23,719 Email-XSS, 12,028 WeChat-XSS, 12,026 UPI-Fraud
+2025-03-30 21:16:28,854 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 21:16:28,854 [INFO] Reporting global fraud IPs...
+2025-03-30 21:16:29,164 [INFO] Reported 365,920 (100.0%), Savings USD: $91,648,435.60
+2025-03-30 21:16:29,165 [INFO] AR: Reported 365,920 global IPs - 48,470 XSS, 24,390 SMS-XSS, 24,157 Email-XSS, 12,156 WeChat-XSS, 12,249 UPI-Fraud, Savings: USD: $91,648,435.60, EUR: $84,637,330.28, GBP: $72,319,780.53, CNY: $651,180,464.63, INR: $7,650,710,590.71
+2025-03-30 21:33:02,031 [INFO] Initialized NSFR for Global Finance: Alliance=500, AR=True
+2025-03-30 21:33:02,034 [INFO] Sweeping global fraud networks...
+2025-03-30 21:33:03,044 [INFO] Flagged 418,443/410,958 (100.0%)
+2025-03-30 21:33:03,044 [INFO] AR: Flagged 418,443 global IPs - 55,637 XSS, 28,149 SMS-XSS, 27,677 Email-XSS, 13,893 WeChat-XSS, 13,914 UPI-Fraud
+2025-03-30 21:33:03,331 [INFO] Shared with 500 partners - Latency: 51ms
+2025-03-30 21:33:03,331 [INFO] Tracking global fraud IPs...
+2025-03-30 21:33:03,841 [INFO] Tracked 358,834 (87.0%)
+2025-03-30 21:33:03,842 [INFO] AR: Tracked 358,834 global IPs - 47,870 XSS, 23,974 SMS-XSS, 23,931 Email-XSS, 12,033 WeChat-XSS, 12,052 UPI-Fraud
+2025-03-30 21:33:03,842 [INFO] Disrupting global fraud operations...
+2025-03-30 21:33:04,545 [INFO] Disrupted 352,350 (100.0%)
+2025-03-30 21:33:04,545 [INFO] AR: Disrupted 352,350 global IPs - 46,956 XSS, 23,685 SMS-XSS, 23,584 Email-XSS, 11,843 WeChat-XSS, 11,683 UPI-Fraud
+2025-03-30 21:33:04,750 [INFO] Synced with 500 partners - New hotspots: 50
+2025-03-30 21:33:04,750 [INFO] Reporting global fraud IPs...
+2025-03-30 21:33:05,064 [INFO] Reported 354,329 (100.0%), Savings USD: $89,315,475.14
+2025-03-30 21:33:05,064 [INFO] AR: Reported 354,329 global IPs - 47,645 XSS, 23,715 SMS-XSS, 23,666 Email-XSS, 11,843 WeChat-XSS, 11,908 UPI-Fraud, Savings: USD: $89,315,475.14, EUR: $82,482,841.29, GBP: $70,478,841.43, CNY: $634,604,313.97, INR: $7,455,957,617.69

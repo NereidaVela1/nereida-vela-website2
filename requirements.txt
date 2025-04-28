@@ -1,0 +1,11 @@
+flask[async]
+gunicorn
+python-dotenv
+requests
+flask-cors
+pandas
+scikit-learn
+joblib
+firebase-admin
+scapy
+numpy

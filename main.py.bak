@@ -1,0 +1,666 @@
+import os
+import json
+import time
+from datetime import datetime, timedelta
+import random
+from collections import defaultdict
+import requests
+import logging
+from flask import Flask, render_template, jsonify, request
+from flask_cors import CORS
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+import joblib
+from firebase_admin import credentials, db, initialize_app
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import queue
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
+
+# Flask Setup
+app = Flask(__name__)
+CORS(app, resources={r"/fraud_data": {"origins": "*"}}, supports_credentials=True)
+
+# Logging Setup
+logging.basicConfig(filename="nsfr.log", level=logging.INFO,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger()
+
+# Firebase Setup
+try:
+    if not os.path.exists("serviceAccountKey.json"):
+        logger.error("serviceAccountKey.json not found")
+        raise FileNotFoundError("serviceAccountKey.json not found")
+    cred = credentials.Certificate("serviceAccountKey.json")
+    initialize_app(cred, {"databaseURL": "https://nsfr-fraud-tracker-default-rtdb.firebaseio.com/"})
+    logger.info("Firebase initialized successfully")
+except Exception as e:
+    logger.error(f"Firebase initialization failed: {e}")
+    raise SystemExit(f"Firebase initialization failed: {e}")
+
+firebase_ref = db.reference("fraud_events")
+training_ref = db.reference("training_data")
+authority_ref = db.reference("authority_reports")
+retry_ref = db.reference("retry_queue")
+
+# Configuration
+API_KEY = "ee9e9abcb55b5406a655ae620416a2cda50af9bd2b391140d274332c7593f66b9687b2034e50d180"
+APP_SECRET = "nsfr-secret-2025"
+GEO_API_KEY = "ec44d93365e12e"
+URL = "https://api.abuseipdb.com/api/v2/check"
+LOG_PATH = "nsfr.log"
+MODEL_PATH = "fraud_model.pkl"
+ACCESS_LOG_PATH = "access.log"
+CACHE_PATH = "ip_cache.json"
+
+SATELLITE_LOCATIONS = {
+    "North America": {"lat": 37.0902, "lon": -95.7129},
+    "Europe": {"lat": 54.5260, "lon": 15.2551},
+    "Asia": {"lat": 34.0479, "lon": 100.6197},
+    "South America": {"lat": -8.7832, "lon": -55.4915},
+    "Africa": {"lat": 6.6111, "lon": 20.9394},
+    "Australia": {"lat": -25.2744, "lon": 133.7751},
+    "Germany": {"lat": 51.1657, "lon": 10.4515},
+    "Unknown": {"lat": 0.0, "lon": 0.0}
+}
+MEMES = [
+    "https://i.imgflip.com/1g8my4.jpg",
+    "https://i.imgflip.com/2fm6x.jpg",
+    "https://i.imgflip.com/1ur9b0.jpg"
+]
+
+logger.info("NSFR 2.0 started!")
+
+
+# ML Model Training
+def train_ml_model():
+    try:
+        training_data = training_ref.get()
+        if not training_data:
+            logger.warning("No training data in Firebase, using default data")
+            data = pd.DataFrame({
+                "score": [80, 10, 60, 5],
+                "frequency": [5, 1, 3, 1],
+                "location": ["North America", "Europe", "Asia", "Europe"],
+                "total_reports": [10, 0, 5, 0],
+                "hourly_freq": [3, 1, 2, 0],
+                "label": [1, 0, 1, 0]
+            })
+        else:
+            data = pd.DataFrame(training_data.values())
+
+        X = data[["score", "frequency", "location", "total_reports", "hourly_freq"]].copy()
+        X.loc[:, "location"] = LabelEncoder().fit_transform(data["location"])
+        y = data["label"]
+
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model.fit(X, y)
+        joblib.dump(model, MODEL_PATH)
+        logger.info("ML model trained and saved")
+        return model
+    except Exception as e:
+        logger.error(f"ML training failed: {e}")
+        return None
+
+
+def load_ml_model():
+    try:
+        if os.path.exists(MODEL_PATH):
+            model = joblib.load(MODEL_PATH)
+            logger.info("ML model loaded from file")
+            return model
+        logger.info("No ML model found, training new model")
+        return train_ml_model()
+    except Exception as e:
+        logger.error(f"Failed to load ML model: {e}")
+        return None
+
+
+# Cybersecurity Functions
+def authenticate_request():
+    auth_header = request.headers.get("X-API-Key")
+    if not auth_header or auth_header != APP_SECRET:
+        logger.warning(f"Unauthorized access attempt from {request.remote_addr}")
+        return False
+    return True
+
+
+def sanitize_input(value):
+    if not isinstance(value, str):
+        return value
+    return ''.join(c for c in value if c.isalnum() or c in ' .-,:')
+
+
+# Geolocation Function
+def get_location(ip):
+    try:
+        response = requests.get(f"https://ipinfo.io/{ip}/json?token={GEO_API_KEY}", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        country = data.get('country', 'Unknown')
+        loc = data.get('loc', '0,0').split(',')
+        lat = float(loc[0]) if loc[0] else 0.0
+        lon = float(loc[1]) if loc[1] else 0.0
+        if country == "AU":
+            return "Australia", lat, lon
+        elif country == "DE":
+            return "Germany", lat, lon
+        elif country == "US":
+            return "North America", lat, lon
+        return f"{data.get('city', 'Unknown')}, {country}", lat, lon
+    except Exception as e:
+        logger.warning(f"Geolocation failed for IP {ip}: {e}")
+        return "Unknown", 0.0, 0.0
+
+
+# FraudTracker Class
+class FraudTracker:
+    def __init__(self):
+        self.ip_history = defaultdict(list)
+        self.ip_locations = {}
+        self.ml_model = load_ml_model()
+        if self.ml_model is None:
+            logger.error("ML model initialization failed")
+            raise SystemExit("ML model initialization failed")
+        self.ip_queue = queue.Queue(maxsize=50)
+        self.executor = ThreadPoolExecutor(max_workers=4)
+
+    def fetch_ips_from_log(self, log_path=ACCESS_LOG_PATH):
+        ips = []
+        logger.info(f"Fetching IPs from {log_path}")
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if not content:
+                    logger.warning("access.log is empty")
+                    return ips
+                for line in content.splitlines():
+                    parts = line.split()
+                    if parts and len(parts[0].split('.')) == 4:
+                        ip = parts[0]
+                        ips.append(ip)
+                        location, lat, lon = get_location(ip)
+                        self.ip_locations[ip] = {"name": location, "lat": lat, "lon": lon}
+                        try:
+                            self.ip_queue.put(ip, timeout=1)
+                        except queue.Full:
+                            logger.warning(f"Queue full, skipping IP: {ip}")
+        except FileNotFoundError:
+            logger.warning(f"{log_path} not found, creating empty file")
+            with open(log_path, 'w') as f:
+                f.write("")
+            ips = ["127.0.0.1"]
+            location, lat, lon = get_location(ips[0])
+            self.ip_locations[ips[0]] = {"name": location, "lat": lat, "lon": lon}
+            try:
+                self.ip_queue.put(ips[0], timeout=1)
+            except queue.Full:
+                logger.warning(f"Queue full, skipping fallback IP: {ips[0]}")
+        except Exception as e:
+            logger.error(f"Failed to read {log_path}: {e}")
+        return ips
+
+    def _fetch_ip_from_api(self, ip):
+        headers = {"Key": API_KEY, "Accept": "application/json"}
+        params = {"ipAddress": ip, "maxAgeInDays": 90}
+        retries = 3
+        backoff = 2
+        for attempt in range(retries):
+            try:
+                response = requests.get(URL, headers=headers, params=params, timeout=10)
+                response.raise_for_status()
+                result = response.json()
+                logger.info(f"API response for {ip}: {result}")
+                return result
+            except requests.RequestException as e:
+                if hasattr(e.response, 'status_code') and e.response.status_code == 429:
+                    logger.warning(f"429 Too Many Requests for IP {ip}, retrying in {backoff}s...")
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
+                    logger.error(f"Error checking IP {ip}: {e}")
+                    break
+        return {"data": {"abuseConfidenceScore": 0, "totalReports": 0}}
+
+    def check_ip(self, ip):
+        try:
+            if not os.path.exists(CACHE_PATH):
+                logger.info(f"Creating {CACHE_PATH}")
+                with open(CACHE_PATH, 'w') as f:
+                    json.dump({}, f)
+            with open(CACHE_PATH, 'r') as f:
+                cache = json.load(f)
+            if ip in cache and time.time() - cache[ip]["timestamp"] < 86400:
+                logger.info(f"Using cached result for IP: {ip}")
+                return cache[ip]["data"]
+            result = self._fetch_ip_from_api(ip)
+            with open(CACHE_PATH, 'r+') as f:
+                cache = json.load(f)
+                cache[ip] = {"data": result, "timestamp": time.time()}
+                f.seek(0)
+                f.truncate()
+                json.dump(cache, f)
+            return result
+        except Exception as e:
+            logger.error(f"Failed to check IP {ip}: {e}")
+            return {"data": {"abuseConfidenceScore": 0, "totalReports": 0}}
+
+    def process_queue(self):
+        logger.info(f"Processing queue, size: {self.ip_queue.qsize()}")
+        high_risk_ips = []
+        try:
+            while not self.ip_queue.empty():
+                ip = self.ip_queue.get()
+                result = self.check_ip(ip)
+                risk, fraud_types, meme = self.detect_fraud(ip, result)
+                if risk in ["high_risk", "medium_risk"]:
+                    location_info = self.ip_locations.get(ip, {"name": "Unknown", "lat": 0.0, "lon": 0.0})
+                    score = result["data"].get("abuseConfidenceScore", 0)
+                    self.save_to_firebase(ip, risk, fraud_types, location_info["name"], meme, score, result)
+                    high_risk_ips.append({
+                        "ip": ip,
+                        "location": location_info["name"],
+                        "meme": meme or "",
+                        "lat": location_info["lat"],
+                        "lon": location_info["lon"],
+                        "victim_note": "",
+                        "risk_level": risk
+                    })
+                self.ip_queue.task_done()
+        except Exception as e:
+            logger.error(f"Queue processing failed: {e}")
+        return high_risk_ips
+
+    def detect_fraud(self, ip, ip_data):
+        try:
+            if not ip_data or "data" not in ip_data:
+                logger.warning(f"No valid data for IP {ip}")
+                return "low_risk", {"xss": 0, "sms": 0, "email": 0, "wechat": 0, "upi": 0}, None
+
+            score = ip_data["data"].get("abuseConfidenceScore", 0)
+            total_reports = ip_data["data"].get("totalReports", 0)
+            current_time = time.time()
+            self.ip_history[ip].append(current_time)
+            self.ip_history[ip] = [t for t in self.ip_history[ip] if current_time - t < 300]
+            frequency = len(self.ip_history[ip])
+            hourly_freq = sum(1 for t in self.ip_history[ip] if current_time - t < 3600)
+            location = self.ip_locations.get(ip, {"name": "Unknown"})["name"]
+
+            input_data = pd.DataFrame([{
+                "score": score,
+                "frequency": frequency,
+                "location": location,
+                "total_reports": total_reports,
+                "hourly_freq": hourly_freq
+            }]).copy()
+            input_data.loc[:, "location"] = LabelEncoder().fit_transform([location])
+            prediction = self.ml_model.predict_proba(input_data)[0][1] if self.ml_model else 0.0
+
+            fraud_types = {"xss": 0, "sms": 0, "email": 0, "wechat": 0, "upi": 0}
+            meme = None
+            if ip == "127.0.0.1" or prediction > 0.5 or score > 50:
+                fraud_types["xss"] = 1 if random.random() > 0.5 else 0
+                fraud_types["sms"] = 1 if (hourly_freq > 4 or location in ["Asia", "Africa"]) else 0
+                fraud_types["email"] = 1 if (prediction > 0.6 or location in ["North America", "Europe"]) else 0
+                fraud_types["wechat"] = 1 if (frequency > 3 and location == "Asia") else 0
+                fraud_types["upi"] = 1 if (prediction > 0.7 and location == "India") else 0
+                meme = random.choice(MEMES)
+                self.executor.submit(self.report_to_authorities, ip, location)
+                return "high_risk", fraud_types, meme
+            elif prediction > 0.3:
+                fraud_types["xss"] = 1 if random.random() > 0.7 else 0
+                fraud_types["sms"] = 1 if frequency > 3 else 0
+                return "medium_risk", fraud_types, None
+            return "low_risk", fraud_types, None
+        except Exception as e:
+            logger.error(f"Fraud detection failed for IP {ip}: {e}")
+            return "low_risk", {"xss": 0, "sms": 0, "email": 0, "wechat": 0, "upi": 0}, None
+
+    def report_to_authorities(self, ip, location):
+        headers = {"Key": API_KEY, "Accept": "application/json"}
+        data = {"ip": ip, "categories": "18", "comment": "Fraud detected by NSFR - High-risk financial fraud"}
+        retries = 5
+        backoff = 5
+        for attempt in range(retries):
+            try:
+                response = requests.post("https://api.abuseipdb.com/api/v2/report", headers=headers, data=data,
+                                         timeout=10)
+                response.raise_for_status()
+                logger.info(f"Reported IP {ip} to AbuseIPDB: {response.json()}")
+                authority_ref.child(ip.replace(".", "_")).set({
+                    "location": location,
+                    "timestamp": datetime.now().isoformat(),
+                    "comment": "NSFR flagged as high-risk financial fraud"
+                })
+                return True
+            except requests.RequestException as e:
+                if hasattr(e.response, 'status_code') and e.response.status_code == 429:
+                    logger.warning(f"429 Too Many Requests for IP {ip}, retrying in {backoff}s...")
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
+                    logger.error(f"Failed to report IP {ip}: {e}")
+                    break
+        logger.warning(f"Max retries reached for IP {ip}, adding to retry queue")
+        try:
+            retry_ref.child(ip.replace(".", "_")).set({
+                "ip": ip,
+                "location": location,
+                "timestamp": datetime.now().isoformat()
+            })
+            logger.info(f"Added IP {ip} to Firebase retry queue")
+        except Exception as e:
+            logger.error(f"Failed to add IP {ip} to retry queue: {e}")
+        return False
+
+    def save_to_firebase(self, ip, risk, fraud_types, location, meme, score, ip_data, victim_note=None):
+        try:
+            timestamp = datetime.now().isoformat()
+            data = {
+                "ip": sanitize_input(ip),
+                "risk_level": risk,
+                "xss": fraud_types["xss"],
+                "sms": fraud_types["sms"],
+                "email": fraud_types["email"],
+                "wechat": fraud_types["wechat"],
+                "upi": fraud_types["upi"],
+                "location": sanitize_input(location),
+                "lat": self.ip_locations.get(ip, {"lat": 0.0})["lat"],
+                "lon": self.ip_locations.get(ip, {"lon": 0.0})["lon"],
+                "timestamp": timestamp,
+                "meme": meme or "",
+                "victim_note": sanitize_input(victim_note) if victim_note else "",
+                "status": "pending"
+            }
+            firebase_ref.child(ip.replace(".", "_")).set(data)
+            training_ref.push({
+                "score": score,
+                "frequency": len(self.ip_history[ip]),
+                "location": location,
+                "total_reports": ip_data["data"].get("totalReports", 0),
+                "hourly_freq": sum(1 for t in self.ip_history[ip] if time.time() - t < 3600),
+                "label": 1 if risk == "high_risk" else 0
+            })
+            logger.info(f"Saved data for IP {ip} to Firebase")
+        except Exception as e:
+            logger.error(f"Failed to save to Firebase for IP {ip}: {e}")
+
+
+tracker = FraudTracker()
+
+
+# Honeypot Server
+class HoneypotHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            bait_html = """
+            <h1>Fake Login - You're Caught!</h1>
+            <form method="POST">
+                <input name="user" placeholder="Username">
+                <input type="password" name="pass" placeholder="Password">
+                <button>Login</button>
+            </form>
+            <a href="#">Forgot Password?</a> | <a href="#">Claim Free Bonus</a>
+            """
+            self.wfile.write(bait_html.encode())
+            ip = sanitize_input(self.client_address[0])
+            logger.info(f"Honeypot hit by IP {ip}, UA: {self.headers.get('User-Agent', 'Unknown')}")
+            try:
+                tracker.ip_queue.put(ip, timeout=1)
+                result = tracker.check_ip(ip)
+                risk, fraud_types, meme = tracker.detect_fraud(ip, result)
+                if risk in ["high_risk", "medium_risk"]:
+                    tracker.save_to_firebase(ip, risk, fraud_types,
+                                             tracker.ip_locations.get(ip, {"name": "Unknown"})["name"], meme,
+                                             result["data"].get("abuseConfidenceScore", 0), result)
+            except queue.Full:
+                logger.warning(f"Honeypot queue full, skipping IP: {ip}")
+        except Exception as e:
+            logger.error(f"Honeypot GET failed: {e}")
+
+    def do_POST(self):
+        try:
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<h1>Credentials Caught - Fraudster Trapped!</h1>")
+            content_len = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_len).decode()
+            ip = sanitize_input(self.client_address[0])
+            logger.info(f"Honeypot POST from {ip}: {post_data}")
+            try:
+                tracker.ip_queue.put(ip, timeout=1)
+                result = tracker.check_ip(ip)
+                risk, fraud_types, meme = tracker.detect_fraud(ip, result)
+                if risk in ["high_risk", "medium_risk"]:
+                    tracker.save_to_firebase(ip, risk, fraud_types,
+                                             tracker.ip_locations.get(ip, {"name": "Unknown"})["name"], meme,
+                                             result["data"].get("abuseConfidenceScore", 0), result)
+            except queue.Full:
+                logger.warning(f"Honeypot queue full, skipping POST IP: {ip}")
+        except Exception as e:
+            logger.error(f"Honeypot POST failed: {e}")
+
+
+# Flask Routes
+@app.route('/')
+def index():
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Index route failed: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route('/victim_input', methods=['GET', 'POST'])
+def victim_input():
+    if not authenticate_request():
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        if request.method == 'POST':
+            ip = sanitize_input(request.form.get('ip') or request.json.get('ip', ''))
+            victim_note = sanitize_input(request.form.get('victim_note') or request.json.get('victim_note', ''))
+            if ip and victim_note:
+                location, lat, lon = get_location(ip)
+                tracker.save_to_firebase(ip, "high_risk", {"xss": 0, "sms": 0, "email": 0, "wechat": 0, "upi": 0},
+                                         location, None, 0, {"data": {"totalReports": 0}}, victim_note)
+                tracker.ip_locations[ip] = {"name": location, "lat": lat, "lon": lon}
+                tracker.ip_queue.put(ip, block=False)
+                logger.info(f"Victim note submitted for IP {ip}: {victim_note}")
+                return jsonify({"message": "Victim note submitted successfully"})
+            logger.warning("Missing IP or victim note in /victim_input")
+            return jsonify({"error": "Missing IP or note"}), 400
+        return """
+        <h1>NSFR Victim Input</h1>
+        <form method="POST">
+            <label>IP Address:</label><br>
+            <input type="text" name="ip" placeholder="e.g., 192.168.1.1"><br>
+            <label>Victim Note:</label><br>
+            <textarea name="victim_note" placeholder="Enter victim's story here"></textarea><br>
+            <button type="submit">Submit</button>
+        </form>
+        """
+    except Exception as e:
+        logger.error(f"Victim input route failed: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route('/fraud_data', methods=['GET'])
+def get_fraud_data():
+    if not authenticate_request():
+        return jsonify({"error": "Unauthorized"}), 401
+    default_response = {
+        "total": 0, "xss": 0, "sms_xss": 0, "email_xss": 0,
+        "wechat_xss": 0, "upi_fraud": 0, "live_trapped": 0, "high_risk_ips": [],
+        "top_fraud": "none", "top_region": "none"
+    }
+    try:
+        tracker.process_queue()
+        db_data = firebase_ref.get() or {}
+        fraud_types = {"xss": 0, "sms_xss": 0, "email_xss": 0, "wechat_xss": 0, "upi_fraud": 0}
+        high_risk_ips = []
+        for key, entry in db_data.items():
+            fraud_types["xss"] += entry.get("xss", 0)
+            fraud_types["sms_xss"] += entry.get("sms", 0)
+            fraud_types["email_xss"] += entry.get("email", 0)
+            fraud_types["wechat_xss"] += entry.get("wechat", 0)
+            fraud_types["upi_fraud"] += entry.get("upi", 0)
+            if entry.get("risk_level") == "high_risk":
+                high_risk_ips.append({
+                    "ip": entry.get("ip", "Unknown"),
+                    "location": entry.get("location", "Unknown"),
+                    "meme": entry.get("meme", ""),
+                    "lat": float(entry.get("lat", 0.0)),
+                    "lon": float(entry.get("lon", 0.0)),
+                    "victim_note": entry.get("victim_note", ""),
+                    "risk_level": entry.get("risk_level", "high_risk")
+                })
+        response = {
+            "total": len(high_risk_ips),
+            "xss": fraud_types["xss"],
+            "sms_xss": fraud_types["sms_xss"],
+            "email_xss": fraud_types["email_xss"],
+            "wechat_xss": fraud_types["wechat_xss"],
+            "upi_fraud": fraud_types["upi_fraud"],
+            "live_trapped": len(high_risk_ips),
+            "high_risk_ips": high_risk_ips,
+            "top_fraud": max(fraud_types.items(), key=lambda x: x[1])[0] if any(fraud_types.values()) else "none",
+            "top_region": max(SATELLITE_LOCATIONS.keys(),
+                              key=lambda r: sum(1 for ip in high_risk_ips if ip["location"] == r),
+                              default="none") if high_risk_ips else "none"
+        }
+        logger.info(f"Serving fraud data: {response}")
+        return jsonify(response)
+    except Exception as e:
+        logger.error(f"Fraud data route failed: {e}")
+        return jsonify(default_response), 500
+
+
+@app.route('/api/report', methods=['POST'])
+def report_fraud():
+    if not authenticate_request():
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            logger.warning("No JSON data in /api/report")
+            return jsonify({"error": "Invalid JSON data"}), 400
+        ip = sanitize_input(data.get('ip', ''))
+        victim_note = sanitize_input(data.get('victim_note', ''))
+        if not ip:
+            logger.warning("Missing IP in /api/report")
+            return jsonify({"error": "IP required"}), 400
+        location, lat, lon = get_location(ip)
+        event = {
+            "ip": ip,
+            "risk_level": "high_risk",
+            "xss": 0,
+            "sms": 0,
+            "email": 0,
+            "wechat": 0,
+            "upi": 0,
+            "location": location,
+            "lat": lat,
+            "lon": lon,
+            "timestamp": datetime.now().isoformat(),
+            "victim_note": victim_note,
+            "status": "pending",
+            "meme": random.choice(MEMES) if ip == "127.0.0.1" else ""
+        }
+        firebase_ref.child(ip.replace(".", "_")).set(event)
+        tracker.ip_locations[ip] = {"name": location, "lat": lat, "lon": lon}
+        tracker.ip_queue.put(ip, block=False)
+        tracker.executor.submit(tracker.report_to_authorities, ip, location)
+        logger.info(f"Report submitted for IP {ip}, note: {victim_note}")
+        return jsonify({'message': 'Report submitted successfully', 'id': ip})
+    except Exception as e:
+        logger.error(f"Report route failed: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# Thread Management
+def start_honeypot():
+    try:
+        httpd = HTTPServer(('0.0.0.0', 8080), HoneypotHandler)
+        logger.info("Honeypot server started on port 8080")
+        httpd.serve_forever()
+    except Exception as e:
+        logger.error(f"Honeypot server failed: {e}")
+
+
+def process_queue_thread():
+    while True:
+        try:
+            tracker.process_queue()
+            time.sleep(60)
+        except Exception as e:
+            logger.error(f"Queue processing thread failed: {e}")
+            time.sleep(60)
+
+
+def process_retry_queue():
+    while True:
+        try:
+            retries = retry_ref.get() or {}
+            for key, data in retries.items():
+                if tracker.report_to_authorities(data["ip"], data["location"]):
+                    retry_ref.child(key).delete()
+                    logger.info(f"Successfully reported and removed IP {data['ip']} from retry queue")
+            time.sleep(3600)
+        except Exception as e:
+            logger.error(f"Retry queue processing failed: {e}")
+            time.sleep(3600)
+
+
+# Start Threads
+try:
+    honeypot_thread = threading.Thread(target=start_honeypot, daemon=True)
+    queue_thread = threading.Thread(target=process_queue_thread, daemon=True)
+    retry_thread = threading.Thread(target=process_retry_queue, daemon=True)
+    honeypot_thread.start()
+    queue_thread.start()
+    retry_thread.start()
+    logger.info("Background threads started successfully")
+except Exception as e:
+    logger.error(f"Failed to start threads: {e}")
+    raise SystemExit(f"Failed to start threads: {e}")
+
+last_train_time = 0
+
+
+def retrain_model_periodically():
+    global last_train_time
+    while True:
+        try:
+            if time.time() - last_train_time > 3600:
+                new_model = train_ml_model()
+                if new_model:
+                    tracker.ml_model = new_model
+                    last_train_time = time.time()
+                    logger.info("ML model retrained successfully")
+            time.sleep(300)
+        except Exception as e:
+            logger.error(f"Model retrain failed: {e}")
+            time.sleep(300)
+
+
+try:
+    retrain_thread = threading.Thread(target=retrain_model_periodically, daemon=True)
+    retrain_thread.start()
+    logger.info("Model retrain thread started")
+except Exception as e:
+    logger.error(f"Failed to start retrain thread: {e}")
+    raise SystemExit(f"Failed to start retrain thread: {e}")
+
+if __name__ == "__main__":
+    try:
+        tracker.fetch_ips_from_log()
+        app.run(host='0.0.0.0', port=5000, debug=False)
+    except Exception as e:
+        logger.error(f"Flask server startup failed: {e}")
+        raise SystemExit(f"Flask server startup failed: {e}")

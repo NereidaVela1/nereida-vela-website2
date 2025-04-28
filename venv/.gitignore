@@ -1,0 +1,10 @@
+*.pyc
+__pycache__/
+.venv/
+.env
+serviceAccountKey.json
+nsfr.log
+access.log
+fraud_model.pkl
+ip_cache.json
+blocked_ips.json

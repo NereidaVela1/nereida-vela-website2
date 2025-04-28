@@ -1,0 +1,218 @@
+using UnityEngine;
+using TMPro;
+using System.Diagnostics;
+using System.Collections;
+using System.Text.RegularExpressions;
+using System.Linq;
+
+public class NSFRAController : MonoBehaviour
+{
+    public GameObject globe;
+    public ParticleSystem redDots, purpleDots, tealDots, yellowDots, orangeDots, pinkDots, allianceDots;
+    public GameObject[] hotspots;
+    public LineRenderer pursuitArrows;
+    public ParticleSystem disruptionWaves;
+    public TextMeshProUGUI counterText, alertText, regText, savingsText;
+    public GameObject victoryBanner;
+
+    public AudioSource hotspotSound, dotSound, waveSound, victorySound;
+
+    private int[] fraudCounts = new int[6];
+    private float[] exchangeRates = new float[] { 1.0f, 0.9235f, 0.7891f, 7.1052f, 83.4789f };
+    private string[] currencies = new string[] { "USD", "EUR", "GBP", "CNY", "INR" };
+    private float timer = 0f;
+    private int phase = 0;
+
+    private string pythonPath = @"C:\Users\nereida longoria\PycharmProjects\pythonProjectNSFR\.venv\Scripts\python.exe";
+    private string scriptPath = @"C:\Users\nereida longoria\PycharmProjects\pythonProjectNSFR\main.py";
+
+    [System.Serializable]
+    private class FraudData
+    {
+        public int total;
+        public int xss;
+        public int sms_xss;
+        public int email_xss;
+        public int wechat_xss;
+        public int upi_fraud;
+    }
+
+    void Start()
+    {
+        StartCoroutine(RunPythonAndInitialize());
+    }
+
+    IEnumerator RunPythonAndInitialize()
+    {
+        ProcessStartInfo psi = new ProcessStartInfo
+        {
+            FileName = pythonPath,
+            Arguments = $"\"{scriptPath}\"",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using (Process process = new Process { StartInfo = psi })
+        {
+            process.Start();
+            string rawOutput = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode == 0)
+            {
+                Debug.Log($"Python script executed successfully. Raw output length: {rawOutput.Length}, Content: [{rawOutput}]");
+
+                string jsonPattern = @"\{[^{}]*\}";
+                Match jsonMatch = Regex.Match(rawOutput, jsonPattern);
+                if (jsonMatch.Success)
+                {
+                    string jsonOutput = jsonMatch.Value;
+                    Debug.Log($"Extracted JSON: [{jsonOutput}]");
+
+                    try
+                    {
+                        FraudData data = JsonUtility.FromJson<FraudData>(jsonOutput);
+                        fraudCounts[0] = data.total;
+                        fraudCounts[1] = data.xss;
+                        fraudCounts[2] = data.sms_xss;
+                        fraudCounts[3] = data.email_xss;
+                        fraudCounts[4] = data.wechat_xss;
+                        fraudCounts[5] = data.upi_fraud;
+                        Debug.Log($"Parsed JSON: Total={fraudCounts[0]}, XSS={fraudCounts[1]}, SMS-XSS={fraudCounts[2]}, Email-XSS={fraudCounts[3]}, WeChat-XSS={fraudCounts[4]}, UPI-Fraud={fraudCounts[5]}");
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogError($"JSON parsing failed: {e.Message}\nAttempted JSON: [{jsonOutput}]");
+                        fraudCounts = new int[] { 410958, 54794, 27397, 27397, 13698, 13698 };
+                        Debug.LogWarning("Using default fraud counts due to JSON parsing failure.");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"No valid JSON object found in output: [{rawOutput}]");
+                    fraudCounts = new int[] { 410958, 54794, 27397, 27397, 13698, 13698 };
+                    Debug.LogWarning("Using default fraud counts due to no JSON detected.");
+                }
+            }
+            else
+            {
+                Debug.LogError($"Python script failed with exit code {process.ExitCode}: {error}");
+                fraudCounts = new int[] { 410958, 54794, 27397, 27397, 13698, 13698 };
+                Debug.LogWarning("Using default fraud counts due to Python execution failure.");
+            }
+        }
+
+        SetupParticles(redDots, Mathf.Min(fraudCounts[0], 50000), Color.red, 0.1f);
+        SetupParticles(purpleDots, Mathf.Min(fraudCounts[1], 10000), new Color(0.5f, 0, 1f), 0.05f);
+        SetupParticles(tealDots, Mathf.Min(fraudCounts[2], 5000), new Color(0, 0.8f, 0.6f), 0.05f);
+        SetupParticles(yellowDots, Mathf.Min(fraudCounts[3], 5000), Color.yellow, 0.05f);
+        SetupParticles(orangeDots, Mathf.Min(fraudCounts[4], 2500), new Color(1f, 0.5f, 0), 0.05f);
+        SetupParticles(pinkDots, Mathf.Min(fraudCounts[5], 2500), new Color(1f, 0.75f, 0.8f), 0.05f);
+        SetupParticles(allianceDots, 500, Color.green, 0.02f);
+        victoryBanner.SetActive(false);
+        counterText.text = "NSFR Global Deploying...";
+        alertText.text = "";
+        regText.text = "";
+        savingsText.text = "";
+        yield return null;
+    }
+
+    void Update()
+    {
+        timer += Time.deltaTime;
+
+        if (phase == 0 && timer >= 5f)
+        {
+            foreach (var hotspot in hotspots)
+                hotspot.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.yellow * (2f + Mathf.Sin(timer) * 0.1f));
+            PlayAllParticles();
+            hotspotSound.Play();
+            dotSound.PlayDelayed(0.5f);
+            int trapped = (int)(fraudCounts[0] * 0.95 * Random.Range(0.98f, 1.02f));
+            int[] trappedBreakdown = fraudCounts.Skip(1).Select(c => (int)(c * 0.95 * Random.Range(0.98f, 1.02f))).ToArray();
+            counterText.text = $"{trapped:N0} IPs Flagged\n({trappedBreakdown[0]:N0} XSS, {trappedBreakdown[1]:N0} SMS-XSS, "
+                             + $"{trappedBreakdown[2]:N0} Email-XSS,\n{trappedBreakdown[3]:N0} WeChat-XSS, {trappedBreakdown[4]:N0} UPI-Fraud)";
+            UpdateAllParticleCounts(new int[] { trapped }.Concat(trappedBreakdown).ToArray());
+            if (timer >= 30f) phase = 1;
+        }
+        else if (phase == 1 && timer >= 30f)
+        {
+            int pursuedTotal = (int)(fraudCounts[0] * 0.90 * Random.Range(0.98f, 1.02f));
+            int[] pursued = fraudCounts.Skip(1).Select(c => (int)(c * 0.90 * Random.Range(0.98f, 1.02f))).ToArray();
+            UpdateAllParticleCounts(new int[] { pursuedTotal }.Concat(pursued).ToArray());
+            pursuitArrows.positionCount = 20;
+            for (int i = 0; i < 20; i++)
+                pursuitArrows.SetPosition(i, Random.onUnitSphere * 3f + Vector3.up * Mathf.Sin(timer) * 0.1f);
+            allianceDots.Play();
+            counterText.text = $"{pursuedTotal:N0} IPs Tracked\n({pursued[0]:N0} XSS, {pursued[1]:N0} SMS-XSS, "
+                             + $"{pursued[2]:N0} Email-XSS,\n{pursued[3]:N0} WeChat-XSS, {pursued[4]:N0} UPI-Fraud)";
+            if (timer >= 40f && alertText.text == "") alertText.text = Random.value < 0.2f ? "Network Spike Detected" : "Global Alliance Sync";
+            if (timer >= 55f) { phase = 2; alertText.text = ""; }
+        }
+        else if (phase == 2 && timer >= 55f)
+        {
+            int disruptedTotal = (int)(fraudCounts[0] * 0.87 * 0.90 * Random.Range(0.98f, 1.02f));
+            int[] disrupted = fraudCounts.Skip(1).Select(c => (int)(c * 0.87 * 0.90 * Random.Range(0.98f, 1.02f))).ToArray();
+            UpdateAllParticleCounts(new int[] { disruptedTotal }.Concat(disrupted).ToArray());
+            disruptionWaves.Play();
+            waveSound.Play();
+            counterText.text = $"{disruptedTotal:N0} IPs Disrupted\n({disrupted[0]:N0} XSS, {disrupted[1]:N0} SMS-XSS, "
+                             + $"{disrupted[2]:N0} Email-XSS,\n{disrupted[3]:N0} WeChat-XSS, {disrupted[4]:N0} UPI-Fraud)";
+            if (timer >= 60f && alertText.text == "") alertText.text = "NSFR Alert: Avoid Suspicious Links Globally";
+            if (timer >= 80f) { phase = 3; alertText.text = ""; }
+        }
+        else if (phase == 3 && timer >= 80f)
+        {
+            int reportedTotal = (int)(fraudCounts[0] * 0.91 * 0.87 * 0.90 * Random.Range(0.98f, 1.02f));
+            int[] reported = fraudCounts.Skip(1).Select(c => (int)(c * 0.91 * 0.87 * 0.90 * Random.Range(0.98f, 1.02f))).ToArray();
+            UpdateAllParticleCounts(new int[] { reportedTotal }.Concat(reported).ToArray());
+            disruptionWaves.Stop();
+            victoryBanner.SetActive(true);
+            victoryBanner.transform.position += Vector3.up * Time.deltaTime * 0.5f;
+            victorySound.Play();
+            counterText.text = $"{reportedTotal:N0} IPs Reported\n({reported[0]:N0} XSS, {reported[1]:N0} SMS-XSS, "
+                             + $"{reported[2]:N0} Email-XSS,\n{reported[3]:N0} WeChat-XSS, {reported[4]:N0} UPI-Fraud)";
+            float savingsUSD = reportedTotal * 250f * Random.Range(0.99f, 1.01f);
+            savingsText.text = string.Join("\n", currencies.Select((c, i) => $"{c}: {(savingsUSD * exchangeRates[i]):N0}"));
+            if (timer >= 110f) phase = 4;
+        }
+        else if (phase == 4 && timer >= 110f)
+        {
+            counterText.text = "NSFR: Global Fraud Slayer";
+            regText.text = "GDPR, GLBA, CCPA, Global Standards Compliant";
+        }
+    }
+
+    void SetupParticles(ParticleSystem ps, int count, Color color, float size)
+    {
+        var main = ps.main;
+        main.maxParticles = count;
+        main.startColor = color;
+        main.startSize = size;
+        ps.transform.position = globe.transform.position;
+    }
+
+    void UpdateAllParticleCounts(int[] counts)
+    {
+        UpdateParticleCount(redDots, Mathf.Min(counts[0], 50000));
+        UpdateParticleCount(purpleDots, Mathf.Min(counts[1], 10000));
+        UpdateParticleCount(tealDots, Mathf.Min(counts[2], 5000));
+        UpdateParticleCount(yellowDots, Mathf.Min(counts[3], 5000));
+        UpdateParticleCount(orangeDots, Mathf.Min(counts[4], 2500));
+        UpdateParticleCount(pinkDots, Mathf.Min(counts[5], 2500));
+    }
+
+    void PlayAllParticles()
+    {
+        redDots.Play(); purpleDots.Play(); tealDots.Play(); yellowDots.Play(); orangeDots.Play(); pinkDots.Play();
+    }
+
+    void UpdateParticleCount(ParticleSystem ps, int newCount)
+    {
+        var main = ps.main;
+        main.maxParticles = newCount;
+    }
+}

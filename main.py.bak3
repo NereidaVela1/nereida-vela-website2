@@ -1,0 +1,224 @@
+import os
+import json
+import time
+from datetime import datetime, timedelta
+import random
+from collections import defaultdict
+import requests
+import logging
+from flask import Flask, render_template, jsonify, request
+from flask_cors import CORS
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+import joblib
+from firebase_admin import credentials, db, initialize_app
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import queue
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# Flask Setup
+app = Flask(__name__)
+CORS(app, resources={r"/fraud_data": {"origins": "*"}}, supports_credentials=True)
+
+# Logging Setup
+logging.basicConfig(filename="nsfr.log", level=logging.INFO,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger()
+
+# Firebase Setup
+try:
+    if not os.path.exists("serviceAccountKey.json"):
+        logger.error("serviceAccountKey.json not found")
+        raise FileNotFoundError("serviceAccountKey.json not found")
+    cred = credentials.Certificate("serviceAccountKey.json")
+    initialize_app(cred, {"databaseURL": "https://nsfr-fraud-tracker-default-rtdb.firebaseio.com/"})
+    logger.info("Firebase initialized successfully")
+except Exception as e:
+    logger.error(f"Firebase initialization failed: {e}")
+    raise SystemExit(f"Firebase initialization failed: {e}")
+
+firebase_ref = db.reference("fraud_events")
+training_ref = db.reference("training_data")
+authority_ref = db.reference("authority_reports")
+retry_ref = db.reference("retry_queue")
+
+# Configuration
+API_KEY = os.getenv("ABUSEIPDB_API_KEY", "YOUR_ABUSEIPDB_API_KEY")
+GEO_API_KEY = os.getenv("IPINFO_API_KEY", "YOUR_IPINFO_API_KEY")
+APP_SECRET = "nsfr-secret-2025"
+APP_SECRET_HASH = generate_password_hash(APP_SECRET)
+URL = "https://api.abuseipdb.com/api/v2/check"
+LOG_PATH = "nsfr.log"
+MODEL_PATH = "fraud_model.pkl"
+ACCESS_LOG_PATH = "access.log"
+CACHE_PATH = "ip_cache.json"
+
+SATELLITE_LOCATIONS = {
+    "North America": {"lat": 37.0902, "lon": -95.7129},
+    "Europe": {"lat": 54.5260, "lon": 15.2551},
+    "Asia": {"lat": 34.0479, "lon": 100.6197},
+    "South America": {"lat": -8.7832, "lon": -55.4915},
+    "Africa": {"lat": 6.6111, "lon": 20.9394},
+    "Australia": {"lat": -25.2744, "lon": 133.7751},
+    "Germany": {"lat": 51.1657, "lon": 10.4515},
+    "Unknown": {"lat": 0.0, "lon": 0.0}
+}
+MEMES = [
+    "https://i.imgflip.com/1g8my4.jpg",
+    "https://i.imgflip.com/2fm6x.jpg",
+    "https://i.imgflip.com/1ur9b0.jpg",
+    "https://i.imgflip.com/4/3ggw.jpg"
+]
+
+# Placeholder for fraudster IPs
+FRAUDSTER_IPS = ["78.98.3.91", "192.168.1.100"]  # TODO: Add your IPs
+
+logger.info("NSFR 2.0 started! Ready to squash those frequent flyer fraudsters!")
+
+# Rate Limiting Setup
+request_counts = defaultdict(list)
+RATE_LIMIT = 100
+RATE_WINDOW = 15 * 60
+
+def rate_limit(f):
+    def decorated_function(*args, **kwargs):
+        ip = request.remote_addr
+        now = time.time()
+        request_counts[ip] = [t for t in request_counts[ip] if now - t < RATE_WINDOW]
+        if len(request_counts[ip]) >= RATE_LIMIT:
+            logger.warning(f"Rate limit exceeded for IP {ip}")
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        request_counts[ip].append(now)
+        return f(*args, **kwargs)
+    return decorated_function
+
+def authenticate_request():
+    auth_header = request.headers.get("X-API-Key")
+    if not auth_header or not check_password_hash(APP_SECRET_HASH, auth_header):
+        logger.warning(f"Unauthorized access attempt from {request.remote_addr}")
+        return False
+    return True
+
+def sanitize_input(value):
+    if not isinstance(value, str):
+        return value
+    return ''.join(c for c in value if c.isalnum() or c in ' .-,:')
+
+def train_ml_model():
+    try:
+        training_data = training_ref.get()
+        if not training_data:
+            logger.warning("No training data in Firebase, using default data")
+            data = pd.DataFrame({
+                "score": [80, 10, 60, 5],
+                "frequency": [5, 1, 3, 1],
+                "location": ["North America", "Europe", "Asia", "Europe"],
+                "total_reports": [10, 0, 5, 0],
+                "hourly_freq": [3, 1, 2, 0],
+                "label": [1, 0, 1, 0]
+            })
+        else:
+            data = pd.DataFrame(training_data.values())
+
+        X = data[["score", "frequency", "location", "total_reports", "hourly_freq"]].copy()
+        X.loc[:, "location"] = LabelEncoder().fit_transform(data["location"])
+        y = data["label"]
+
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model.fit(X, y)
+        joblib.dump(model, MODEL_PATH)
+        logger.info("ML model trained and saved")
+        return model
+    except Exception as e:
+        logger.error(f"ML training failed: {e}")
+        return None
+
+def load_ml_model():
+    try:
+        if os.path.exists(MODEL_PATH):
+            model = joblib.load(MODEL_PATH)
+            logger.info("ML model loaded from file")
+            return model
+        logger.info("No ML model found, training new model")
+        return train_ml_model()
+    except Exception as e:
+        logger.error(f"Failed to load ML model: {e}")
+        return None
+
+def get_location(ip):
+    try:
+        response = requests.get(f"https://ipinfo.io/{ip}/json?token={GEO_API_KEY}", timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        country = data.get('country', 'Unknown')
+        loc = data.get('loc', '0,0').split(',')
+        lat = float(loc[0]) if loc[0] else 0.0
+        lon = float(loc[1]) if loc[1] else 0.0
+        if country == "AU":
+            return "Australia", lat, lon
+        elif country == "DE":
+            return "Germany", lat, lon
+        elif country == "US":
+            return "North America", lat, lon
+        return f"{data.get('city', 'Unknown')}, {country}", lat, lon
+    except Exception as e:
+        logger.warning(f"Geolocation failed for IP {ip}: {e}")
+        return "Unknown", 0.0, 0.0
+
+def block_ip(ip, platform="linux"):
+    try:
+        if platform == "linux":
+            os.system(f"iptables -A INPUT -s {ip} -j DROP")
+            os.system(f"iptables -A INPUT -s {ip} -j LOG --log-prefix 'NSFR_FRAUD_BLOCK: '")
+            logger.info(f"Blocked IP {ip} with iptables: Frequent flyer grounded!")
+        elif platform == "windows":
+            os.system(f"netsh advfirewall firewall add rule name='NSFR_Block_{ip}' dir=in action=block remoteip={ip}")
+            logger.info(f"Blocked IP {ip} with Windows Firewall: No VIP pass for fraudsters!")
+        else:
+            logger.warning(f"Unsupported platform for firewall rules: {platform}")
+    except Exception as e:
+        logger.error(f"Failed to block IP {ip}: {e}")
+
+class FraudTracker:
+    def __init__(self):
+        self.ip_history = defaultdict(list)
+        self.ip_locations = {}
+        self.ml_model = load_ml_model()
+        if self.ml_model is None:
+            logger.error("ML model initialization failed")
+            raise SystemExit("ML model initialization failed")
+        self.ip_queue = queue.Queue(maxsize=100)
+        self.executor = ThreadPoolExecutor(max_workers=4)
+
+    def fetch_ips_from_log(self, log_path=ACCESS_LOG_PATH):
+        ips = []
+        logger.info(f"Fetching IPs from {log_path}")
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if not content:
+                    logger.warning("access.log is empty, adding fraudster IPs")
+                    with open(log_path, 'a') as f:
+                        for ip in FRAUDSTER_IPS:
+                            f.write(f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S +0000')}] \"GET / HTTP/1.1\" 200 -\n")
+                    content = open(log_path).read()
+                for line in content.splitlines():
+                    parts = line.split()
+                    if parts and len(parts[0].split('.')) == 4:
+                        ip = parts[0]
+                        ips.append(ip)
+                        location, lat, lon = get_location(ip)
+                        self.ip_locations[ip] = {"name": location, "lat": lat, "lon": lon}
+                        try:
+                            self.ip_queue.put(ip, timeout=1)
+                        except queue.Full:
+                            logger.warning(f"Queue full, skipping IP: {ip}")
+        except FileNotFoundError:
+            logger.warning(f"{log_path} not found, creating with fraudster IPs")
+            with open(log_path, 'w') as f:
+                for ip in FRAUDSTER_IPS:
+                    f.write(f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S)^{*
