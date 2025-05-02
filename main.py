@@ -11,6 +11,7 @@ from flask_cors import CORS
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
+from sklearn.cluster import DBSCAN
 import joblib
 from firebase_admin import credentials, db, initialize_app, messaging
 import threading
@@ -19,24 +20,13 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-from scapy.all import sniff, IP
+from scapy.all import sniff, IP, ICMP
 import ipaddress
 import re
-# import json
-# try:
-#     with open("serviceAccountKey.json", "r") as f:
-#         data = json.load(f)
-#     print("JSON is valid:", data["project_id"])
-# except json.JSONDecodeError as e:
-#     print("JSON error:", str(e))
-# except FileNotFoundError:
-#     print("File not found: serviceAccountKey.json")
+
 # Load environment variables
 load_dotenv()
-from dotenv import load_dotenv
-import os
 try:
-    load_dotenv()
     print("SERVER_NAME:", os.getenv("SERVER_NAME"))
     print("FLASK_DEBUG:", os.getenv("FLASK_DEBUG"))
     print("ABUSEIPDB_API_KEY:", os.getenv("ABUSEIPDB_API_KEY"))
@@ -45,6 +35,7 @@ try:
     print("APP_SECRET:", os.getenv("APP_SECRET"))
 except Exception as e:
     print("Error loading .env:", str(e))
+
 # Flask Setup
 app = Flask(__name__)
 CORS(app, resources={r"/fraud_data": {"origins": "*"}, r"/paysim_analysis": {"origins": "*"}, r"/leaderboard": {"origins": "*"}},
@@ -72,6 +63,7 @@ training_ref = db.reference("training_data")
 authority_ref = db.reference("authority_reports")
 retry_ref = db.reference("retry_queue")
 ip_locations_ref = db.reference("ip_locations")
+anomaly_ref = db.reference("anomalies")
 
 # Configuration
 API_KEY = os.getenv("ABUSEIPDB_API_KEY")
@@ -87,6 +79,7 @@ MODEL_PATH = "fraud_model.pkl"
 ACCESS_LOG_PATH = "access.log"
 CACHE_PATH = "ip_cache.json"
 BLOCKED_IPS_FILE = "blocked_ips.json"
+PAYSIM_PATH = "paysim_data.csv"  # Placeholder for PaySim dataset
 
 SATELLITE_LOCATIONS = {
     "North America": {"lat": 37.0902, "lon": -95.7129},
@@ -108,16 +101,21 @@ FRAUDSTER_IPS = [
     "65.25.30.171", "23.244.98.115", "75.188.143.217", "174.207.99.249",
     "174.207.105.89", "187.72.178.126", "107.72.179.126", "168.149.160.68",
     "168.149.133.172", "208.184.162.167", "48.24.144.38", "107.115.108.62",
-    "107.115.112.61", "107.115.112.23", "107.115.108.25"
+    "107.115.112.61", "107.115.112.23", "107.115.108.25",
+    "185.229.59.87",  # PacketHub S.A. high-risk IP
+    "45.141.215.110",  # PacketHub S.A. example IP
+    "45.141.215.111",  # PacketHub S.A. example IP
+    "162.243.29.245",  # TextNow high-risk IP
+    "165.227.212.167"  # TextNow example IP
 ]
 
-logger.info("NSFR 2.0 started! Ready to squash those frequent flyer fraudsters!")
+logger.info("NSFR 2.0 started! Cyber financial cop reporting for duty!")
 
 # Rate Limiting Setup
 request_counts = defaultdict(list)
 RATE_LIMIT = 100
 RATE_WINDOW = 15 * 60
-cache_lock = threading.Lock()  # Lock for cache file access
+cache_lock = threading.Lock()
 
 def rate_limit(f):
     def decorated_function(*args, **kwargs):
@@ -129,7 +127,6 @@ def rate_limit(f):
             return jsonify({"error": "Rate limit exceeded"}), 429
         request_counts[ip].append(now)
         return f(*args, **kwargs)
-    # Preserve the original function's name as the endpoint
     decorated_function.__name__ = f.__name__
     return decorated_function
 
@@ -146,7 +143,6 @@ def sanitize_input(value):
     return ''.join(c for c in value if c.isalnum() or c in ' .-,:')
 
 def is_valid_ip(ip):
-    """Validate IP address format."""
     try:
         ipaddress.ip_address(ip)
         return True
@@ -156,27 +152,60 @@ def is_valid_ip(ip):
 def train_ml_model():
     try:
         training_data = training_ref.get()
+        paysim_data = None
+        if os.path.exists(PAYSIM_PATH):
+            try:
+                paysim_data = pd.read_csv(PAYSIM_PATH)
+                paysim_data = paysim_data.rename(columns={
+                    "isFraud": "label",
+                    "amount": "score",
+                    "type": "fraud_type"
+                }).dropna(subset=["label"])
+                paysim_data["location"] = paysim_data.get("location", "Unknown")
+                paysim_data["frequency"] = paysim_data.groupby("nameOrig")["nameOrig"].transform("count")
+                paysim_data["hourly_freq"] = paysim_data.groupby("nameOrig")["step"].transform(lambda x: (x.diff().fillna(1) <= 1).sum())
+                paysim_data["total_reports"] = paysim_data.groupby("nameOrig")["isFlaggedFraud"].transform("sum")
+                paysim_data["is_packethub"] = 0
+                paysim_data["is_textnow"] = 0
+                paysim_data["fraud_type_weights"] = paysim_data["fraud_type"].map({
+                    "TRANSFER": 0.8, "CASH_OUT": 0.9, "PAYMENT": 0.3, "CASH_IN": 0.2, "DEBIT": 0.5
+                }).fillna(0.5)
+                logger.info("PaySim data integrated into training")
+            except Exception as e:
+                logger.warning(f"PaySim data processing failed: {e}")
+
         if not training_data:
             logger.warning("No training data in Firebase, using default data")
             data = pd.DataFrame({
-                "score": [80, 10, 60, 5],
-                "frequency": [5, 1, 3, 1],
-                "location": ["North America", "Europe", "Asia", "Europe"],
-                "total_reports": [10, 0, 5, 0],
-                "hourly_freq": [3, 1, 2, 0],
-                "label": [1, 0, 1, 0]
+                "score": [80, 10, 60, 5, 90, 85, 74, 70],  # PacketHub and TextNow IPs
+                "frequency": [5, 1, 3, 1, 6, 5, 4, 3],
+                "location": ["North America", "Europe", "Asia", "Europe", "Unknown", "Unknown", "North America", "North America"],
+                "total_reports": [10, 0, 5, 0, 15, 12, 8, 6],
+                "hourly_freq": [3, 1, 2, 0, 4, 3, 2, 2],
+                "is_packethub": [0, 0, 0, 0, 1, 1, 0, 0],
+                "is_textnow": [0, 0, 0, 0, 0, 0, 1, 1],
+                "fraud_type_weights": [0.8, 0.3, 0.5, 0.2, 0.9, 0.9, 0.8, 0.8],  # Simulated fraud weights
+                "label": [1, 0, 1, 0, 1, 1, 1, 1]
             })
         else:
             data = pd.DataFrame(training_data.values())
+            data["is_packethub"] = data["ip"].apply(lambda ip: 1 if ip in ["185.229.59.87", "45.141.215.110", "45.141.215.111"] else 0)
+            data["is_textnow"] = data["ip"].apply(lambda ip: 1 if ip in ["162.243.29.245", "165.227.212.167"] else 0)
+            data["fraud_type_weights"] = data.get("fraud_type", "UNKNOWN").map({
+                "xss": 0.7, "sms": 0.9, "email": 0.8, "wechat": 0.6, "upi": 0.9, "UNKNOWN": 0.5
+            }).fillna(0.5)
 
-        X = data[["score", "frequency", "location", "total_reports", "hourly_freq"]].copy()
+        if paysim_data is not None:
+            data = pd.concat([data, paysim_data[data.columns]], ignore_index=True)
+
+        X = data[["score", "frequency", "location", "total_reports", "hourly_freq", "is_packethub", "is_textnow", "fraud_type_weights"]].copy()
         X.loc[:, "location"] = LabelEncoder().fit_transform(data["location"])
         y = data["label"]
 
         model = RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")
         model.fit(X, y)
         joblib.dump(model, MODEL_PATH)
-        logger.info("ML model trained and saved")
+        logger.info("ML model trained with PacketHub, TextNow, and PaySim data")
         return model
     except Exception as e:
         logger.error(f"ML training failed: {e}")
@@ -197,7 +226,31 @@ def load_ml_model():
 def retrain_model_periodically():
     while True:
         train_ml_model()
-        time.sleep(24 * 3600)  # Retrain daily
+        time.sleep(12 * 3600)  # Retrain every 12 hours for faster learning
+
+def detect_anomalies(ip_data_list):
+    try:
+        if not ip_data_list:
+            return []
+        df = pd.DataFrame(ip_data_list, columns=["score", "frequency", "hourly_freq", "total_reports"])
+        df_scaled = (df - df.mean()) / df.std()
+        dbscan = DBSCAN(eps=0.5, min_samples=5).fit(df_scaled)
+        labels = dbscan.labels_
+        anomalies = [ip_data_list[i] for i, label in enumerate(labels) if label == -1]
+        for anomaly in anomalies:
+            anomaly_ref.push({
+                "ip": anomaly["ip"],
+                "score": anomaly["score"],
+                "frequency": anomaly["frequency"],
+                "hourly_freq": anomaly["hourly_freq"],
+                "total_reports": anomaly["total_reports"],
+                "timestamp": datetime.now().isoformat()
+            })
+            logger.info(f"Detected anomaly for IP {anomaly['ip']}")
+        return anomalies
+    except Exception as e:
+        logger.error(f"Anomaly detection failed: {e}")
+        return []
 
 def get_location(ip):
     if not is_valid_ip(ip):
@@ -252,37 +305,35 @@ def block_ip(ip, platform="linux"):
             blocked_ips.append(ip)
             save_blocked_ips(blocked_ips)
             if platform == "linux":
-                os.system(f"iptables -A INPUT -s {ip} -j DROP")
+                os.system(f"iptables -A INPUT -s {ip} -p icmp --icmp-type echo-request -j DROP")
                 os.system(f"iptables -A INPUT -s {ip} -j LOG --log-prefix 'NSFR_FRAUD_BLOCK: '")
-                logger.info(f"Blocked IP {ip} with iptables: Priority fraudster grounded!")
+                logger.info(f"Blocked ICMP pings from IP {ip} with iptables")
             elif platform == "windows":
-                # Sanitize IP to prevent command injection
                 safe_ip = re.sub(r'[^\d.]', '', ip)
-                os.system(f"netsh advfirewall firewall add rule name='NSFR_Block_{safe_ip}' dir=in action=block remoteip={safe_ip}")
-                logger.info(f"Blocked IP {ip} with Windows Firewall: Priority fraudster locked out!")
+                os.system(f"netsh advfirewall firewall add rule name='NSFR_Block_{safe_ip}' dir=in action=block remoteip={safe_ip} protocol=icmpv4:8,any")
+                logger.info(f"Blocked ICMP pings from IP {ip} with Windows Firewall")
             else:
-                logger.warning(f"Unsupported platform for firewall rules: {platform}")
+                logger.warning(f"Unsupported platform: {platform}")
     except Exception as e:
         logger.error(f"Failed to block IP {ip}: {e}")
 
-def send_fcm_notification(ip, risk_level, location):
+def send_fcm_notification(ip, risk_level, location, reason="Fraud detected"):
     try:
         message = messaging.Message(
             notification=messaging.Notification(
-                title=f"New Fraudster Detected: {ip}",
-                body=f"Risk: {risk_level}, Location: {location}"
+                title=f"NSFR Alert: Fraudster {ip} Detected",
+                body=f"Risk: {risk_level}, Location: {location}, Reason: {reason}"
             ),
             topic="fraud_alerts"
         )
         messaging.send(message)
-        logger.info(f"FCM notification sent for IP {ip}")
+        logger.info(f"FCM notification sent for IP {ip}: {reason}")
     except Exception as e:
         logger.error(f"Failed to send FCM notification for IP {ip}: {e}")
 
 def cleanup_old_events():
     try:
         cutoff = datetime.now() - timedelta(days=30)
-        # Use query to limit data retrieval
         events = firebase_ref.order_by_child("timestamp").end_at(cutoff.isoformat()).get()
         if events:
             for key, event in events.items():
@@ -302,13 +353,14 @@ class FraudTracker:
         self.ip_queue = queue.Queue(maxsize=100)
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.known_ips = set(load_blocked_ips())
+        self.anomaly_data = []  # Store data for anomaly detection
 
     def capture_ips(self, interface=None, count=100):
         if not interface:
             from scapy.config import conf
-            interface = conf.iface  # Use default interface
+            interface = conf.iface
         try:
-            packets = sniff(iface=interface, count=count, timeout=10)
+            packets = sniff(iface=interface, count=count, timeout=10, filter="icmp or tcp")
             return [pkt[IP].src for pkt in packets if IP in pkt and pkt[IP].src not in self.known_ips]
         except Exception as e:
             logger.error(f"Failed to capture IPs on interface {interface}: {e}")
@@ -324,8 +376,7 @@ class FraudTracker:
                     logger.warning("access.log is empty, adding fraudster IPs")
                     with open(log_path, 'a') as f:
                         for ip in FRAUDSTER_IPS:
-                            f.write(
-                                f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S +0000')}] \"GET / HTTP/1.1\" 200 -\n")
+                            f.write(f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S +0000')}] \"GET / HTTP/1.1\" 200 -\n")
                     content = open(log_path).read()
                 for line in content.splitlines():
                     parts = line.split()
@@ -345,8 +396,7 @@ class FraudTracker:
             logger.warning(f"{log_path} not found, creating with fraudster IPs")
             with open(log_path, 'w') as f:
                 for ip in FRAUDSTER_IPS:
-                    f.write(
-                        f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S +0000')}] \"GET / HTTP/1.1\" 200 -\n")
+                    f.write(f"{ip} - - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S +0000')}] \"GET / HTTP/1.1\" 200 -\n")
             return self.fetch_ips_from_log(log_path)
         except Exception as e:
             logger.error(f"Failed to read {log_path}: {e}")
@@ -365,7 +415,7 @@ class FraudTracker:
                 response = requests.get(URL, headers=headers, params=params, timeout=10)
                 response.raise_for_status()
                 result = response.json()
-                logger.info(f"API response for {ip}: {result}")
+                logger.info(f"API response for IP {ip}: {result}")
                 return result
             except requests.RequestException as e:
                 if hasattr(e.response, 'status_code') and e.response.status_code == 429:
@@ -399,17 +449,50 @@ class FraudTracker:
             logger.error(f"Failed to check IP {ip}: {e}")
             return {"data": {"abuseConfidenceScore": 0, "totalReports": 0}}
 
+    def cyber_cop_decision(self, ip, score, frequency, hourly_freq, total_reports, location):
+        # Simulate a cyber financial cop's reasoning
+        suspicion_score = 0
+        reasons = []
+        if ip in FRAUDSTER_IPS:
+            suspicion_score += 50
+            reasons.append("Known fraudster IP")
+        if score > 70:
+            suspicion_score += 30
+            reasons.append("High AbuseIPDB score")
+        if frequency > 5 or hourly_freq > 3:
+            suspicion_score += 20
+            reasons.append("Unusual request frequency")
+        if total_reports > 10:
+            suspicion_score += 15
+            reasons.append("Multiple abuse reports")
+        if location in ["Unknown", "Asia", "Africa"]:
+            suspicion_score += 10
+            reasons.append("High-risk location")
+        if suspicion_score > 80:
+            return "high_risk", reasons
+        elif suspicion_score > 50:
+            return "medium_risk", reasons
+        return "low_risk", reasons
+
     def process_queue(self):
         logger.info(f"Processing queue, size: {self.ip_queue.qsize()}")
         high_risk_ips = []
+        anomaly_data_batch = []
         try:
             while not self.ip_queue.empty():
                 ip = self.ip_queue.get()
                 result = self.check_ip(ip)
                 risk, fraud_types, meme = self.detect_fraud(ip, result)
+                if ip in ["185.229.59.87", "45.141.215.110", "45.141.215.111"]:
+                    logger.info(f"PacketHub IP {ip} detected with risk: {risk}")
+                if ip in ["162.243.29.245", "165.227.212.167"]:
+                    logger.info(f"TextNow IP {ip} detected with risk: {risk}")
                 if risk in ["high_risk", "medium_risk"]:
                     location_info = self.ip_locations.get(ip, {"name": "Unknown", "lat": 0.0, "lon": 0.0})
                     score = result["data"].get("abuseConfidenceScore", 0)
+                    frequency = len(self.ip_history[ip])
+                    hourly_freq = sum(1 for t in self.ip_history[ip] if time.time() - t < 3600)
+                    total_reports = result["data"].get("totalReports", 0)
                     self.save_to_firebase(ip, risk, fraud_types, location_info["name"], meme, score, result)
                     high_risk_ips.append({
                         "ip": ip,
@@ -419,11 +502,22 @@ class FraudTracker:
                         "lon": location_info["lon"],
                         "victim_note": f"Priority Fraudster {ip} caught!" if ip in FRAUDSTER_IPS else "",
                         "risk_level": risk,
-                        "fraud_types": fraud_types  # Store fraud_types for /fraud_data
+                        "fraud_types": fraud_types
+                    })
+                    anomaly_data_batch.append({
+                        "ip": ip,
+                        "score": score,
+                        "frequency": frequency,
+                        "hourly_freq": hourly_freq,
+                        "total_reports": total_reports
                     })
                     if ip in FRAUDSTER_IPS or len([t for t in self.ip_history[ip] if time.time() - t < 86400]) > 3:
                         block_ip(ip, platform="windows" if os.name == "nt" else "linux")
                 self.ip_queue.task_done()
+            if anomaly_data_batch:
+                anomalies = detect_anomalies(anomaly_data_batch)
+                for anomaly in anomalies:
+                    send_fcm_notification(anomaly["ip"], "high_risk", self.ip_locations.get(anomaly["ip"], {"name": "Unknown"})["name"], "Anomaly detected")
         except Exception as e:
             logger.error(f"Queue processing failed: {e}")
         return high_risk_ips
@@ -442,37 +536,48 @@ class FraudTracker:
             frequency = len(self.ip_history[ip])
             hourly_freq = sum(1 for t in self.ip_history[ip] if current_time - t < 3600)
             location = self.ip_locations.get(ip, {"name": "Unknown"})["name"]
+            is_packethub = 1 if ip in ["185.229.59.87", "45.141.215.110", "45.141.215.111"] else 0
+            is_textnow = 1 if ip in ["162.243.29.245", "165.227.212.167"] else 0
+            fraud_type_weights = 0.9 if ip in FRAUDSTER_IPS else 0.5  # Higher weight for known fraudsters
 
             input_data = pd.DataFrame([{
                 "score": score,
                 "frequency": frequency,
                 "location": location,
                 "total_reports": total_reports,
-                "hourly_freq": hourly_freq
+                "hourly_freq": hourly_freq,
+                "is_packethub": is_packethub,
+                "is_textnow": is_textnow,
+                "fraud_type_weights": fraud_type_weights
             }]).copy()
             input_data.loc[:, "location"] = LabelEncoder().fit_transform([location])
             prediction = self.ml_model.predict_proba(input_data)[0][1] if self.ml_model else 0.0
 
+            # Cyber cop decision engine
+            cop_risk, cop_reasons = self.cyber_cop_decision(ip, score, frequency, hourly_freq, total_reports, location)
+
             fraud_types = {"xss": 0, "sms": 0, "email": 0, "wechat": 0, "upi": 0}
             meme = None
-            if ip in FRAUDSTER_IPS:
+            if ip in FRAUDSTER_IPS or is_packethub or is_textnow or cop_risk == "high_risk":
                 fraud_types["xss"] = 1
                 fraud_types["sms"] = 1
                 fraud_types["email"] = 1
                 meme = random.choice(MEMES)
-                self.executor.submit(self.report_to_authorities, ip, location, f"Priority Fraudster {ip} caught by NSFR: {meme}")
-                send_fcm_notification(ip, "high_risk", location)
+                reason = f"Priority Fraudster {ip} caught: {', '.join(cop_reasons)}" if cop_reasons else f"Priority Fraudster {ip} caught"
+                self.executor.submit(self.report_to_authorities, ip, location, f"{reason}: {meme}")
+                send_fcm_notification(ip, "high_risk", location, reason)
                 return "high_risk", fraud_types, meme
-            elif prediction > 0.5 or score > 50:
+            elif prediction > 0.5 or score > 50 or cop_risk == "medium_risk":
                 fraud_types["xss"] = 1 if random.random() > 0.5 else 0
                 fraud_types["sms"] = 1 if (hourly_freq > 4 or location in ["Asia", "Africa"]) else 0
                 fraud_types["email"] = 1 if (prediction > 0.6 or location in ["North America", "Europe"]) else 0
                 fraud_types["wechat"] = 1 if (frequency > 3 and location == "Asia") else 0
                 fraud_types["upi"] = 1 if (prediction > 0.7 and location == "India") else 0
                 meme = random.choice(MEMES)
-                self.executor.submit(self.report_to_authorities, ip, location, f"Fraud detected by NSFR: {meme}")
+                reason = f"Fraud detected: {', '.join(cop_reasons)}" if cop_reasons else "Fraud detected"
+                self.executor.submit(self.report_to_authorities, ip, location, f"{reason}: {meme}")
                 if prediction > 0.7:
-                    send_fcm_notification(ip, "high_risk", location)
+                    send_fcm_notification(ip, "high_risk", location, reason)
                 return "high_risk", fraud_types, meme
             elif prediction > 0.3:
                 fraud_types["xss"] = 1 if random.random() > 0.7 else 0
@@ -545,11 +650,15 @@ class FraudTracker:
             }
             firebase_ref.child(ip.replace(".", "_")).set(data)
             training_ref.push({
+                "ip": ip,
                 "score": score,
                 "frequency": len(self.ip_history[ip]),
                 "location": location,
                 "total_reports": ip_data["data"].get("totalReports", 0),
                 "hourly_freq": sum(1 for t in self.ip_history[ip] if time.time() - t < 3600),
+                "is_packethub": 1 if ip in ["185.229.59.87", "45.141.215.110", "45.141.215.111"] else 0,
+                "is_textnow": 1 if ip in ["162.243.29.245", "165.227.212.167"] else 0,
+                "fraud_type_weights": 0.9 if ip in FRAUDSTER_IPS else 0.5,
                 "label": 1 if risk in ["high_risk", "medium_risk"] else 0
             })
             logger.info(f"Saved IP {ip} to Firebase: Fraudster tears collected!")
@@ -558,13 +667,18 @@ class FraudTracker:
 
     def process_paysim_datasets(self):
         try:
-            # Placeholder for PaySim dataset processing
-            logger.info("Processing PaySim datasets for DAT 223 fraud analysis")
-            # TODO: Implement PaySim dataset processing logic
-            return {"status": "success"}
+            if os.path.exists(PAYSIM_PATH):
+                paysim_data = pd.read_csv(PAYSIM_PATH)
+                fraud_count = paysim_data["isFraud"].sum()
+                top_fraud_type = paysim_data[paysim_data["isFraud"] == 1]["type"].mode().iloc[0] if fraud_count > 0 else "None"
+                logger.info(f"PaySim analysis: {fraud_count} frauds detected, top type: {top_fraud_type}")
+                return {"status": "success", "fraud_count": int(fraud_count), "top_fraud_type": top_fraud_type}
+            else:
+                logger.warning("PaySim dataset not found")
+                return {"status": "error", "message": "PaySim dataset not found"}
         except Exception as e:
             logger.error(f"PaySim processing failed: {e}")
-            return {"status": "error"}
+            return {"status": "error", "message": str(e)}
 
 # Flask Routes
 @app.route("/fraud_data")
@@ -593,7 +707,7 @@ def get_fraud_data():
 def get_leaderboard():
     if not authenticate_request():
         return jsonify({"error": "Unauthorized"}), 401
-    events = firebase_ref.order_by_child("ip").limit_to_last(100).get()  # Limit to 100 events
+    events = firebase_ref.order_by_child("ip").limit_to_last(100).get()
     if not events:
         return jsonify({"entries": []})
     ip_counts = defaultdict(int)
